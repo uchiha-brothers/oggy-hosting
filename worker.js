@@ -3,6 +3,12 @@ export default {
     const url = new URL(request.url);
     if (request.method !== "POST") return new Response("Only POST allowed");
 
+    const pathname = url.pathname; // e.g., /bot123456:ABC
+    const matched = pathname.match(/^\/bot([A-Za-z0-9:_-]+)$/);
+    const token = matched?.[1];
+
+    if (!token) return new Response("❌ Bot token missing in path", { status: 400 });
+
     const update = await request.json();
     const message = update.message || update.edited_message;
     const text = message?.text || "";
@@ -13,29 +19,34 @@ export default {
     const command = text.split(" ")[0];
     const isReelCommand = text.includes("instagram.com/reel/") || text.startsWith("/reel");
 
-    // Handle /newbot
+    // Handle /newbot (only allow master bot to create clones)
     if (command === "/newbot") {
+      const masterToken = "8139678579:AAEc338z-0Gt45ZPsf35DJSCbaKm8JLvju4";
+      if (token !== masterToken) {
+        await sendMessage(chatId, "❌ Only the master bot can create new bots.", token);
+        return new Response("Unauthorized");
+      }
+
       const newToken = text.split(" ")[1];
       if (!newToken || !newToken.startsWith("8")) {
-        await sendMessage(chatId, "❌ Invalid or missing bot token.");
+        await sendMessage(chatId, "❌ Invalid or missing bot token.", token);
         return new Response("Invalid token");
       }
 
-      const webhookUrl = "https://" + url.hostname;
+      const webhookUrl = `https://${url.hostname}/bot${newToken}`;
       const tgUrl = `https://api.telegram.org/bot${newToken}/setWebhook?url=${webhookUrl}`;
       const tgRes = await fetch(tgUrl);
       const tgJson = await tgRes.json();
 
       if (tgJson.ok) {
-        await sendMessage(chatId, `✅ New bot deployed!\n🎯 Webhook: ${webhookUrl}`);
+        await sendMessage(chatId, `✅ New bot deployed!\n🎯 Webhook: ${webhookUrl}`, token);
       } else {
-        await sendMessage(chatId, `❌ Failed to deploy bot.\nError: ${tgJson.description}`);
+        await sendMessage(chatId, `❌ Failed to deploy bot.\nError: ${tgJson.description}`, token);
       }
 
       return new Response("New bot setup done.");
     }
 
-    // Handle Instagram Reel
     if (!isReelCommand) return new Response("Not a reel or newbot command");
 
     let reelUrl = text;
@@ -45,12 +56,11 @@ export default {
     }
 
     if (!reelUrl.startsWith("http")) {
-      await sendMessage(chatId, "❌ Invalid Instagram URL.");
+      await sendMessage(chatId, "❌ Invalid Instagram URL.", token);
       return new Response("Invalid URL");
     }
 
-    // Show downloading message
-    const msg = await sendMessage(chatId, "📥 Downloading Instagram reel...");
+    const msg = await sendMessage(chatId, "📥 Downloading Instagram reel...", token);
     const messageId = msg?.result?.message_id;
 
     try {
@@ -58,22 +68,19 @@ export default {
       const json = await apiRes.json();
 
       if (!json.status || !json.data || !json.data[0]?.url) {
-        await deleteMessage(chatId, messageId);
-        await sendMessage(chatId, "❌ Failed to fetch the video.");
+        await deleteMessage(chatId, messageId, token);
+        await sendMessage(chatId, "❌ Failed to fetch the video.", token);
         return new Response("No video found");
       }
 
       const videoUrl = json.data[0].url;
 
-      // Delete downloading message
-      if (messageId) await deleteMessage(chatId, messageId);
-
-      // Send video
-      await sendVideo(chatId, videoUrl);
+      if (messageId) await deleteMessage(chatId, messageId, token);
+      await sendVideo(chatId, videoUrl, token);
 
     } catch (e) {
-      if (messageId) await deleteMessage(chatId, messageId);
-      await sendMessage(chatId, "❌ Error downloading the reel.");
+      if (messageId) await deleteMessage(chatId, messageId, token);
+      await sendMessage(chatId, "❌ Error downloading the reel.", token);
       console.error(e);
     }
 
@@ -81,10 +88,9 @@ export default {
   }
 };
 
-const BOT_TOKEN = "8139678579:AAEc338z-0Gt45ZPsf35DJSCbaKm8JLvju4"; // Master bot token
-
-async function sendMessage(chatId, text) {
-  const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
+// These functions now accept `token` as parameter
+async function sendMessage(chatId, text, token) {
+  const url = `https://api.telegram.org/bot${token}/sendMessage`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -93,8 +99,8 @@ async function sendMessage(chatId, text) {
   return res.json();
 }
 
-async function sendVideo(chatId, videoUrl) {
-  const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendVideo`;
+async function sendVideo(chatId, videoUrl, token) {
+  const url = `https://api.telegram.org/bot${token}/sendVideo`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -107,9 +113,9 @@ async function sendVideo(chatId, videoUrl) {
   return res.json();
 }
 
-async function deleteMessage(chatId, messageId) {
+async function deleteMessage(chatId, messageId, token) {
   if (!messageId) return;
-  const url = `https://api.telegram.org/bot${BOT_TOKEN}/deleteMessage`;
+  const url = `https://api.telegram.org/bot${token}/deleteMessage`;
   await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
