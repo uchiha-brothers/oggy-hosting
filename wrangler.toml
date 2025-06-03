@@ -1,8 +1,9 @@
 name = "oggyhosting"
-main = "worker.js"
-compatibility_date = "2024-06-01"
-type = "module"
+type = "javascript"
+account_id = "574f06d98127b4c90aae909014cc758d"
+workers_dev = true
+compatibility_date = "2025-06-03"
 
-[[kv_namespaces]]
-binding = "MYBOTS_KV"
-id = "0e4b34b4eebf43efb318e2a5ec08c9a5"
+kv_namespaces = [
+  { binding = "MYBOTS_KV", id = "0e4b34b4eebf43efb318e2a5ec08c9a5" }
+]
