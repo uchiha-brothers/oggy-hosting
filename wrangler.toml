@@ -3,3 +3,15 @@ type = "javascript"
 account_id = "574f06d98127b4c90aae909014cc758d"
 main = "worker.js"
 compatibility_date = "2025-06-03"
+
+[[kv_namespaces]]
+binding = "DISABLED_BOTS_KV"
+id = "6049efb7dbae45a3b2e48c57cf9f2b6c"
+
+[[kv_namespaces]]
+binding = "DEPLOYED_BOTS_KV"
+id = "abf08d0798374112b949671dc404a367"
+
+[[kv_namespaces]]
+binding = "USERS_KV"
+id = "773c7cb1420f4f50a72f472954587093"
