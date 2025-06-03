@@ -3,13 +3,19 @@ export default {
     const url = new URL(request.url);
     if (request.method !== "POST") return new Response("Only POST allowed");
 
-    const pathname = url.pathname; // e.g., /bot123456:ABC
-    const matched = pathname.match(/^\/bot([A-Za-z0-9:_-]+)$/);
+    const pathname = url.pathname;
+    const matched = pathname.match(/^\/bot([A-Za-z0-9:_-]+)\/?$/);
     const token = matched?.[1];
 
     if (!token) return new Response("❌ Bot token missing in path", { status: 400 });
 
-    const update = await request.json();
+    let update;
+    try {
+      update = await request.json();
+    } catch {
+      return new Response("❌ Invalid JSON", { status: 400 });
+    }
+
     const message = update.message || update.edited_message;
     const text = message?.text || "";
     const chatId = message?.chat?.id;
@@ -17,11 +23,13 @@ export default {
     if (!chatId || !text) return new Response("No message");
 
     const command = text.split(" ")[0];
-    const isReelCommand = text.includes("instagram.com/reel/") || text.startsWith("/reel");
+    const isReelCommand = text.includes("instagram.com/reel/") || text.includes("instagram.com/p/") || text.startsWith("/reel");
 
-    // Handle /newbot (only allow master bot to create clones)
+    // Master bot token
+    const masterToken = "8139678579:AAEc338z-0Gt45ZPsf35DJSCbaKm8JLvju4";
+
+    // Handle /newbot (only master bot)
     if (command === "/newbot") {
-      const masterToken = "8139678579:AAEc338z-0Gt45ZPsf35DJSCbaKm8JLvju4";
       if (token !== masterToken) {
         await sendMessage(chatId, "❌ Only the master bot can create new bots.", token);
         return new Response("Unauthorized");
@@ -34,8 +42,7 @@ export default {
       }
 
       const webhookUrl = `https://${url.hostname}/bot${newToken}`;
-      const tgUrl = `https://api.telegram.org/bot${newToken}/setWebhook?url=${webhookUrl}`;
-      const tgRes = await fetch(tgUrl);
+      const tgRes = await fetch(`https://api.telegram.org/bot${newToken}/setWebhook?url=${webhookUrl}`);
       const tgJson = await tgRes.json();
 
       if (tgJson.ok) {
@@ -47,7 +54,8 @@ export default {
       return new Response("New bot setup done.");
     }
 
-    if (!isReelCommand) return new Response("Not a reel or newbot command");
+    // Only handle Instagram reels
+    if (!isReelCommand) return new Response("Not a reel or /newbot command");
 
     let reelUrl = text;
     if (text.startsWith("/reel")) {
@@ -68,7 +76,7 @@ export default {
       const json = await apiRes.json();
 
       if (!json.status || !json.data || !json.data[0]?.url) {
-        await deleteMessage(chatId, messageId, token);
+        if (messageId) await deleteMessage(chatId, messageId, token);
         await sendMessage(chatId, "❌ Failed to fetch the video.", token);
         return new Response("No video found");
       }
@@ -81,14 +89,14 @@ export default {
     } catch (e) {
       if (messageId) await deleteMessage(chatId, messageId, token);
       await sendMessage(chatId, "❌ Error downloading the reel.", token);
-      console.error(e);
+      console.error("❌ Error:", e);
     }
 
     return new Response("OK");
   }
 };
 
-// These functions now accept `token` as parameter
+// Utility functions
 async function sendMessage(chatId, text, token) {
   const url = `https://api.telegram.org/bot${token}/sendMessage`;
   const res = await fetch(url, {
@@ -107,7 +115,7 @@ async function sendVideo(chatId, videoUrl, token) {
     body: JSON.stringify({
       chat_id: chatId,
       video: videoUrl,
-      caption: "🎬 Here's your Instagram reel!"
+      caption: "🎬 Here's your Instagram reel!",
     }),
   });
   return res.json();
