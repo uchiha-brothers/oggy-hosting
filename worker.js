@@ -1,4 +1,4 @@
-const BOT_MANAGER_TOKEN = '8139678579:AAEo5xhqEiDWvDIwFLBW7YBj2kl4Inngmnc';
+const BOT_MANAGER_TOKEN = '8139678579:AAGyRQMGA0nSZal_14gZ68RGrc6TU8D81TI';
 const BASE_API = `https://api.telegram.org/bot${BOT_MANAGER_TOKEN}`;
 const WORKER_BASE_URL = 'https://oggyhosting.oggyapi-574.workers.dev';
 
@@ -22,7 +22,7 @@ async function handleStart(chatId, isClone = false, token = BOT_MANAGER_TOKEN) {
   const msg = isClone
     ? `👋 *Welcome!*
 
-Your Telegram bot is active and ready!
+Your Telegram bot is active and ready! @HostingPhProbot
 
 Send any Instagram Reel URL to download it instantly. ✅`
     : `👋 *Welcome to Telegram Bot Hosting!*
