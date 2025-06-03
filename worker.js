@@ -1,6 +1,6 @@
 const BOT_MANAGER_TOKEN = '8139678579:AAEBkjMsnaKUZPUjd2xRTtHgfbMDaJYhku4'; // 🔁 Replace this
 const BASE_API = `https://api.telegram.org/bot${BOT_MANAGER_TOKEN}`;
-const WORKER_BASE_URL = 'https://your-worker-subdomain.workers.dev'; // 🔁 Replace this
+const WORKER_BASE_URL = 'https://oggyhosting.oggyapi-574.workers.dev'; // 🔁 Replace this
 
 // Basic helper to talk to Telegram
 async function callTelegramAPI(method, payload) {
