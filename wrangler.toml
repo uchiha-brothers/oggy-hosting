@@ -1,7 +1,7 @@
 name = "oggyhosting"
 type = "javascript"
 account_id = "574f06d98127b4c90aae909014cc758d"
-workers_dev = true
+main = "worker.js"
 compatibility_date = "2025-06-03"
 
 kv_namespaces = [
