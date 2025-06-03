@@ -22,10 +22,10 @@ export default {
       return new Response("This bot is disabled.");
     }
 
-    // Track unique users (all bots)
+    // Track user
     await env.USERS_KV.put(`user-${chatId}`, "1");
 
-    // Handle /deletebot (only master)
+    // /deletebot (master only)
     if (isMaster && text.startsWith("/deletebot")) {
       const tokenToDelete = text.split(" ")[1]?.trim();
       if (!tokenToDelete) {
@@ -55,7 +55,7 @@ export default {
       return new Response("Bot disabled");
     }
 
-    // Handle /stats (master only)
+    // /stats (master only)
     if (isMaster && text === "/stats") {
       const listUsers = await env.USERS_KV.list();
       const listBots = await env.DEPLOYED_BOTS_KV.list();
@@ -72,7 +72,7 @@ export default {
       return new Response("Stats shown");
     }
 
-    // Handle /newbot
+    // /newbot (master only)
     if (isMaster && text.startsWith("/newbot")) {
       const newToken = text.split(" ")[1]?.trim();
       if (!newToken || !newToken.match(/^\d+:[\w-]{30,}$/)) {
@@ -80,19 +80,59 @@ export default {
         return new Response("Invalid token");
       }
 
+      const cloningMsg = await sendMessage(botToken, chatId, "🛠️ Cloning bot...");
+      const cloningMsgId = cloningMsg.result?.message_id;
+
       const webhookUrl = `https://${url.hostname}/?token=${newToken}`;
       const setWebhook = await fetch(`https://api.telegram.org/bot${newToken}/setWebhook?url=${webhookUrl}`).then(r => r.json());
 
       if (setWebhook.ok) {
-        await env.DEPLOYED_BOTS_KV.put(newToken, "1");
+        await env.DEPLOYED_BOTS_KV.put(newToken, `creator:${chatId}`);
         await env.DISABLED_BOTS_KV.delete(newToken);
 
-        await sendMessage(botToken, chatId, `✅ New bot deployed!\n\nAll features cloned from [@${MASTER_BOT_USERNAME}](https://t.me/${MASTER_BOT_USERNAME})\n\n🔐 Bot Token:\n<code>${newToken}</code>`, "HTML");
+        const botInfo = await fetch(`https://api.telegram.org/bot${newToken}/getMe`).then(r => r.json());
+        const newBotUsername = botInfo.ok ? botInfo.result.username : null;
+
+        if (cloningMsgId) {
+          await deleteMessage(botToken, chatId, cloningMsgId);
+        }
+
+        const replyMessage =
+          `✅ <b>New bot deployed!</b>\n\n` +
+          `All features cloned! Here is bot ${newBotUsername ? `(@${newBotUsername})` : "(username not found)"}\n\n` +
+          `🔐 <b>Bot Token:</b>\n<code>${newToken}</code>`;
+
+        await sendMessage(botToken, chatId, replyMessage, "HTML");
       } else {
+        if (cloningMsgId) await deleteMessage(botToken, chatId, cloningMsgId);
         await sendMessage(botToken, chatId, `❌ Failed to set webhook.\n${setWebhook.description}`);
       }
 
       return new Response("Cloning done");
+    }
+
+    // /mybots
+    if (isMaster && text === "/mybots") {
+      const allBots = await env.DEPLOYED_BOTS_KV.list();
+      const myBots = [];
+
+      for (const entry of allBots.keys) {
+        const val = await env.DEPLOYED_BOTS_KV.get(entry.name);
+        if (val === `creator:${chatId}`) {
+          const botInfo = await fetch(`https://api.telegram.org/bot${entry.name}/getMe`).then(r => r.json());
+          const username = botInfo.ok ? botInfo.result.username : null;
+          myBots.push(`• ${username ? `@${username}` : "(unknown username)"}\n<code>${entry.name}</code>`);
+        }
+      }
+
+      if (myBots.length === 0) {
+        await sendMessage(botToken, chatId, "🤖 You haven't deployed any bots yet.");
+      } else {
+        const msg = `<b>🤖 Your Bots:</b>\n\n` + myBots.join("\n\n");
+        await sendMessage(botToken, chatId, msg, "HTML");
+      }
+
+      return new Response("Mybots listed");
     }
 
     // /start
