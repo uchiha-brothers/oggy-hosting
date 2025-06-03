@@ -1,6 +1,6 @@
-const BOT_MANAGER_TOKEN = '8139678579:AAFv8G3emG2rQrdq1ivYo1D00kOqfT9wpoo'; // 🔁 Replace this
+const BOT_MANAGER_TOKEN = '8139678579:AAFv8G3emG2rQrdq1ivYo1D00kOqfT9wpoo'; // Replace this
 const BASE_API = `https://api.telegram.org/bot${BOT_MANAGER_TOKEN}`;
-const WORKER_BASE_URL = 'https://oggyhosting.oggyapi-574.workers.dev'; // 🔁 Replace this
+const WORKER_BASE_URL = 'https://oggyhosting.oggyapi-574.workers.dev'; // Replace this
 
 // Basic helper to talk to Telegram
 async function callTelegramAPI(method, payload) {
@@ -21,9 +21,11 @@ async function handleStart(chatId) {
   const msg = `👋 *Welcome to Telegram Bot Hosting!*
 
 • Use /newbot <your-bot-token> to deploy your bot.
+• Use /reel <Instagram-URL> to download reels.
 
 _Example:_
 /newbot 123456789:AAExampleTokenHere
+/reel https://www.instagram.com/reel/xxxx
 
 Your bot will be live instantly 🚀`;
 
@@ -65,7 +67,42 @@ async function handleNewBot(chatId, token) {
   }
 }
 
-// Main message handler for master bot
+// /reel command
+async function handleReelCommand(chatId, url) {
+  if (!url.startsWith('http')) {
+    return callTelegramAPI('sendMessage', {
+      chat_id: chatId,
+      text: '❌ Please provide a valid Instagram reel URL.\n\nUsage: /reel <url>'
+    });
+  }
+
+  const apiUrl = `https://jerrycoder.oggyapi.workers.dev/insta?url=${encodeURIComponent(url)}`;
+  try {
+    const res = await fetch(apiUrl);
+    const data = await res.json();
+
+    if (data.status && data.data && data.data[0]?.url) {
+      const videoUrl = data.data[0].url;
+      return callTelegramAPI('sendVideo', {
+        chat_id: chatId,
+        video: videoUrl,
+        caption: '🎬 Here is your Instagram reel!',
+      });
+    } else {
+      return callTelegramAPI('sendMessage', {
+        chat_id: chatId,
+        text: '❌ Failed to fetch the reel. Please check the URL and try again.'
+      });
+    }
+  } catch (e) {
+    return callTelegramAPI('sendMessage', {
+      chat_id: chatId,
+      text: '❌ Error while downloading the reel. Please try again later.'
+    });
+  }
+}
+
+// Master bot handler
 async function handleMasterUpdate(update) {
   const message = update.message;
   if (!message || !message.text) return;
@@ -88,9 +125,22 @@ async function handleMasterUpdate(update) {
     }
   }
 
+  if (text.startsWith('/reel')) {
+    const parts = text.split(' ');
+    if (parts.length === 2) {
+      const url = parts[1].trim();
+      return handleReelCommand(chatId, url);
+    } else {
+      return callTelegramAPI('sendMessage', {
+        chat_id: chatId,
+        text: '❌ Usage: /reel <Instagram-reel-URL>'
+      });
+    }
+  }
+
   return callTelegramAPI('sendMessage', {
     chat_id: chatId,
-    text: '🤖 Unknown command. Use /start or /newbot <token>'
+    text: '🤖 Unknown command. Use /start, /newbot <token> or /reel <url>'
   });
 }
 
@@ -125,14 +175,12 @@ export default {
     }
 
     try {
-      // Master bot: /
       if (url.pathname === '/') {
         const update = await request.json();
         await handleMasterUpdate(update);
         return new Response('OK');
       }
 
-      // Deployed bots: /api/<token>
       if (url.pathname.startsWith('/api/')) {
         const token = url.pathname.split('/api/')[1];
         if (!isValidToken(token)) {
