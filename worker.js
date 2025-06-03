@@ -2,7 +2,7 @@ const BOT_MANAGER_TOKEN = '8139678579:AAGyRQMGA0nSZal_14gZ68RGrc6TU8D81TI';
 const BASE_API = `https://api.telegram.org/bot${BOT_MANAGER_TOKEN}`;
 const WORKER_BASE_URL = 'https://oggyhosting.oggyapi-574.workers.dev';
 const ADMIN_ID = 7485643534; // Replace with your Telegram user ID
-
+const MYBOTS_KV = '0e4b34b4eebf43efb318e2a5ec08c9a5'
 async function callTelegramAPI(method, payload, token = BOT_MANAGER_TOKEN) {
   return fetch(`https://api.telegram.org/bot${token}/${method}`, {
     method: 'POST',
