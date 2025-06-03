@@ -102,7 +102,7 @@ async function handleReelCommand(chatId, url, token = BOT_MANAGER_TOKEN) {
   } catch (e) {
     return callTelegramAPI('sendMessage', {
       chat_id: chatId,
-      text: '❌ Error while downloading the reel. Please try again later.'
+      text: `❌ Error while downloading the reel: ${e.message}`
     }, token);
   }
 }
@@ -153,31 +153,39 @@ async function handleMasterUpdate(update) {
 }
 
 async function handleBotWebhook(token, request) {
-  const update = await request.json();
-  if (!update.message) return new Response('ok');
+  try {
+    const update = await request.json();
+    if (!update.message) return new Response('ok');
 
-  const chatId = update.message.chat.id;
-  const text = (update.message.text || update.message.caption || '').trim();
+    const chatId = update.message.chat.id;
+    const text = (update.message.text || update.message.caption || '').trim();
 
-  if (text === '/start') {
-    await callTelegramAPI('sendMessage', {
-      chat_id: chatId,
-      text: '🤖 Your bot is live and working!'
-    }, token);
+    if (text === '/start') {
+      await callTelegramAPI('sendMessage', {
+        chat_id: chatId,
+        text: '🤖 Your bot is live and working!'
+      }, token);
+      return new Response('ok');
+    }
+
+    if (isInstagramUrl(text)) {
+      await handleReelCommand(chatId, text, token);
+      return new Response('ok');
+    }
+
+    // Do nothing on regular messages
     return new Response('ok');
+  } catch (e) {
+    const update = await request.json();
+    const chatId = update?.message?.chat?.id;
+    if (chatId) {
+      await callTelegramAPI('sendMessage', {
+        chat_id: chatId,
+        text: `❌ Error: ${e.message}`
+      }, token);
+    }
+    return new Response('error: ' + e.message, { status: 500 });
   }
-
-  if (isInstagramUrl(text)) {
-    await handleReelCommand(chatId, text, token);
-    return new Response('ok');
-  }
-
-  await callTelegramAPI('sendMessage', {
-    chat_id: chatId,
-    text: '✅ Message received by your bot.'
-  }, token);
-
-  return new Response('ok');
 }
 
 // Main router
