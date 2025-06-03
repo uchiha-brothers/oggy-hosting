@@ -1,6 +1,7 @@
 const BOT_MANAGER_TOKEN = '8139678579:AAGyRQMGA0nSZal_14gZ68RGrc6TU8D81TI';
 const BASE_API = `https://api.telegram.org/bot${BOT_MANAGER_TOKEN}`;
 const WORKER_BASE_URL = 'https://oggyhosting.oggyapi-574.workers.dev';
+const ADMIN_ID = 6388015582; // Replace with your Telegram user ID
 
 async function callTelegramAPI(method, payload, token = BOT_MANAGER_TOKEN) {
   return fetch(`https://api.telegram.org/bot${token}/${method}`, {
@@ -20,17 +21,13 @@ function isInstagramUrl(text) {
 
 async function handleStart(chatId, isClone = false, token = BOT_MANAGER_TOKEN) {
   const msg = isClone
-    ? `👋 *Welcome!*
-
-Your Telegram bot is active and ready! @HostingPhProbot
-
-Send any Instagram Reel URL to download it instantly. ✅`
+    ? `👋 *Welcome!*\n\nYour Telegram bot is active and ready! @HostingPhProbot\n\nSend any Instagram Reel URL to download it instantly. ✅`
     : `👋 *Welcome to Telegram Bot Hosting!*
 
-• *Deploy your own bot:* `/newbot <your-bot-token>`
-• *Download Instagram reels:* `/reel <Instagram-URL>`
-• *Delete a bot:* `/deletebot <bot-token>`
-• *Stats:* `/stats`
+• *Deploy your own bot:* \`/newbot <your-bot-token>\`
+• *Download Instagram reels:* \`/reel <Instagram-URL>\`
+• *Delete a bot:* \`/deletebot <bot-token>\`
+• *Stats:* \`/stats\`
 
 _Example:_
 /newbot 123456789:AAExampleTokenHere
@@ -205,7 +202,14 @@ async function handleBotWebhook(token, request) {
       await handleStart(chatId, true, token);
       return new Response('ok');
     }
-
+    
+    if (text === '/id') {
+  return callTelegramAPI('sendMessage', {
+    chat_id: chatId,
+    text: `🆔 Your Telegram ID: \`${chatId}\``,
+    parse_mode: 'Markdown'
+  });
+}
     if (isInstagramUrl(text)) {
       await handleReelCommand(chatId, text, token);
       return new Response('ok');
@@ -235,9 +239,17 @@ export default {
 
     try {
       if (url.pathname === '/') {
-        const update = await request.json();
-        await handleMasterUpdate(update);
-        return new Response('OK');
+        try {
+          const update = await request.json();
+          await handleMasterUpdate(update);
+          return new Response('OK');
+        } catch (e) {
+          await callTelegramAPI('sendMessage', {
+            chat_id: ADMIN_ID,
+            text: `❌ Master bot crash:\n${e.message}`
+          });
+          return new Response('Error in master handler: ' + e.message, { status: 500 });
+        }
       }
 
       if (url.pathname.startsWith('/api/')) {
@@ -250,6 +262,10 @@ export default {
 
       return new Response('Not Found', { status: 404 });
     } catch (e) {
+      await callTelegramAPI('sendMessage', {
+        chat_id: ADMIN_ID,
+        text: `❌ Global error: ${e.message}`
+      });
       return new Response('Error: ' + e.message, { status: 500 });
     }
   }
