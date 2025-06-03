@@ -16,6 +16,10 @@ function isValidToken(token) {
   return /^(\d{7,10}):[\w-]{35}$/.test(token);
 }
 
+function isInstagramUrl(text) {
+  return text && text.includes('instagram.com') && text.startsWith('http');
+}
+
 // /start command for master bot
 async function handleStart(chatId) {
   const msg = `👋 *Welcome to Telegram Bot Hosting!*
@@ -67,15 +71,8 @@ async function handleNewBot(chatId, token) {
   }
 }
 
-// /reel command
+// /reel or Instagram link handler
 async function handleReelCommand(chatId, url) {
-  if (!url.startsWith('http')) {
-    return callTelegramAPI('sendMessage', {
-      chat_id: chatId,
-      text: '❌ Please provide a valid Instagram reel URL.\n\nUsage: /reel <url>'
-    });
-  }
-
   const apiUrl = `https://jerrycoder.oggyapi.workers.dev/insta?url=${encodeURIComponent(url)}`;
   try {
     const res = await fetch(apiUrl);
@@ -105,10 +102,10 @@ async function handleReelCommand(chatId, url) {
 // Master bot handler
 async function handleMasterUpdate(update) {
   const message = update.message;
-  if (!message || !message.text) return;
+  if (!message || (!message.text && !message.caption)) return;
 
   const chatId = message.chat.id;
-  const text = message.text.trim();
+  const text = (message.text || message.caption || '').trim();
 
   if (text === '/start') return handleStart(chatId);
 
@@ -138,6 +135,10 @@ async function handleMasterUpdate(update) {
     }
   }
 
+  if (isInstagramUrl(text)) {
+    return handleReelCommand(chatId, text);
+  }
+
   return callTelegramAPI('sendMessage', {
     chat_id: chatId,
     text: '🤖 Unknown command. Use /start, /newbot <token> or /reel <url>'
@@ -150,16 +151,26 @@ async function handleBotWebhook(token, request) {
   if (!update.message) return new Response('ok');
 
   const chatId = update.message.chat.id;
-  const text = update.message.text || '';
+  const text = (update.message.text || update.message.caption || '').trim();
 
-  const reply = text === '/start'
-    ? '🤖 Your bot is live and working!'
-    : '✅ Message received by your bot.';
+  if (text === '/start') {
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text: '🤖 Your bot is live and working!' })
+    });
+    return new Response('ok');
+  }
+
+  if (isInstagramUrl(text)) {
+    await handleReelCommand(chatId, text);
+    return new Response('ok');
+  }
 
   await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text: reply })
+    body: JSON.stringify({ chat_id: chatId, text: '✅ Message received by your bot.' })
   });
 
   return new Response('ok');
