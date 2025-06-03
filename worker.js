@@ -2,6 +2,10 @@ const BOT_MANAGER_TOKEN = '8139678579:AAGyRQMGA0nSZal_14gZ68RGrc6TU8D81TI';
 const WORKER_BASE_URL = 'https://oggyhosting.oggyapi-574.workers.dev';
 const ADMIN_ID = 7485643534;
 
+// In-memory storage (reset on worker restart/redeploy!)
+const bots = new Set();
+const users = new Set();
+
 // Validate Telegram bot token format
 function isValidToken(token) {
   return /^\d{7,10}:[\w-]{35}$/.test(token);
@@ -80,9 +84,9 @@ async function handleNewBot(chatId, token) {
   const json = await res.json();
 
   if (json.ok) {
-    // Store bot token and user info in KV
-    await MYBOTS_KV.put(`bot-${token}`, '1');
-    await MYBOTS_KV.put(`user-${chatId}`, '1');
+    // Store bot token and user info in in-memory storage
+    bots.add(token);
+    users.add(chatId);
 
     return callTelegramAPI('sendMessage', {
       chat_id: chatId,
@@ -108,25 +112,33 @@ async function handleDeleteBot(chatId, text) {
   }
 
   const token = parts[1];
-  await MYBOTS_KV.delete(`bot-${token}`);
-  return callTelegramAPI('sendMessage', {
-    chat_id: chatId,
-    text: '✅ Your bot has been deleted.'
-  });
+  if (bots.has(token)) {
+    bots.delete(token);
+    return callTelegramAPI('sendMessage', {
+      chat_id: chatId,
+      text: '✅ Your bot has been deleted.'
+    });
+  } else {
+    return callTelegramAPI('sendMessage', {
+      chat_id: chatId,
+      text: '⚠️ Bot token not found or already deleted.'
+    });
+  }
 }
 
 // Show stats of deployed bots and users
 async function handleStats(chatId) {
-  const list = await MYBOTS_KV.list();
-  const botCount = list.keys.filter(k => k.name.startsWith('bot-')).length;
-  const userCount = list.keys.filter(k => k.name.startsWith('user-')).length;
+  const botCount = bots.size;
+  const userCount = users.size;
 
   return callTelegramAPI('sendMessage', {
     chat_id: chatId,
     text: `📊 *Bot Stats:*
 
 • Total Bots: *${botCount}*
-• Total Users: *${userCount}*`,
+• Total Users: *${userCount}*
+
+⚠️ *Note:* Data is stored in-memory and will reset on worker restarts.`,
     parse_mode: 'Markdown'
   });
 }
