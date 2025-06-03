@@ -7,5 +7,5 @@ type = "module"
 binding = "MYBOTS_KV"
 id = "0e4b34b4eebf43efb318e2a5ec08c9a5"
 
-BOT_MANAGER_TOKEN = '8139678579:AAGOtoQZglZXEdBh0EkbC3saMOkNo4XzW80'
+BOT_MANAGER_TOKEN = '8139678579:AAEo5xhqEiDWvDIwFLBW7YBj2kl4Inngmnc'
 WORKER_BASE_URL = 'https://oggyhosting.oggyapi-574.workers.dev'
