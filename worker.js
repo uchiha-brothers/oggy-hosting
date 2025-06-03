@@ -2,14 +2,17 @@ const BOT_MANAGER_TOKEN = '8139678579:AAGyRQMGA0nSZal_14gZ68RGrc6TU8D81TI';
 const WORKER_BASE_URL = 'https://oggyhosting.oggyapi-574.workers.dev';
 const ADMIN_ID = 7485643534;
 
+// Validate Telegram bot token format
 function isValidToken(token) {
   return /^\d{7,10}:[\w-]{35}$/.test(token);
 }
 
+// Check if text contains Instagram URL
 function isInstagramUrl(text) {
   return text && text.includes('instagram.com') && text.startsWith('http');
 }
 
+// Call Telegram API method
 async function callTelegramAPI(method, payload, token = BOT_MANAGER_TOKEN) {
   return fetch(`https://api.telegram.org/bot${token}/${method}`, {
     method: 'POST',
@@ -18,6 +21,7 @@ async function callTelegramAPI(method, payload, token = BOT_MANAGER_TOKEN) {
   });
 }
 
+// Handle /start command for master or clone bots
 async function handleStart(chatId, isClone = false, token = BOT_MANAGER_TOKEN) {
   const msg = isClone
     ? `👋 *Welcome!*\n\nYour Telegram bot is active and ready! @HostingPhProbot\n\nSend any Instagram Reel URL to download it instantly. ✅`
@@ -41,6 +45,7 @@ Your bot will be live instantly 🚀`;
   }, token);
 }
 
+// Handle /help command
 async function handleHelp(chatId, token) {
   return callTelegramAPI('sendMessage', {
     chat_id: chatId,
@@ -56,6 +61,7 @@ Commands:
   }, token);
 }
 
+// Deploy a new bot by setting webhook
 async function handleNewBot(chatId, token) {
   if (!isValidToken(token)) {
     return callTelegramAPI('sendMessage', {
@@ -74,6 +80,7 @@ async function handleNewBot(chatId, token) {
   const json = await res.json();
 
   if (json.ok) {
+    // Store bot token and user info in KV
     await MYBOTS_KV.put(`bot-${token}`, '1');
     await MYBOTS_KV.put(`user-${chatId}`, '1');
 
@@ -90,6 +97,7 @@ async function handleNewBot(chatId, token) {
   }
 }
 
+// Delete a deployed bot token
 async function handleDeleteBot(chatId, text) {
   const parts = text.split(' ');
   if (parts.length !== 2) {
@@ -107,6 +115,7 @@ async function handleDeleteBot(chatId, text) {
   });
 }
 
+// Show stats of deployed bots and users
 async function handleStats(chatId) {
   const list = await MYBOTS_KV.list();
   const botCount = list.keys.filter(k => k.name.startsWith('bot-')).length;
@@ -122,6 +131,7 @@ async function handleStats(chatId) {
   });
 }
 
+// Handle /reel command or direct Instagram URL
 async function handleReelCommand(chatId, url, token = BOT_MANAGER_TOKEN) {
   try {
     const downloading = await callTelegramAPI('sendMessage', {
@@ -138,6 +148,7 @@ async function handleReelCommand(chatId, url, token = BOT_MANAGER_TOKEN) {
     if (data.status && data.data && data.data[0]?.url) {
       const videoUrl = data.data[0].url;
 
+      // Delete "Downloading..." message
       await callTelegramAPI('deleteMessage', {
         chat_id: chatId,
         message_id: messageData.result.message_id
@@ -162,6 +173,7 @@ async function handleReelCommand(chatId, url, token = BOT_MANAGER_TOKEN) {
   }
 }
 
+// Handle updates sent to master bot
 async function handleMasterUpdate(update) {
   const message = update.message;
   if (!message || (!message.text && !message.caption)) return;
@@ -207,6 +219,7 @@ async function handleMasterUpdate(update) {
   });
 }
 
+// Handle webhook updates for deployed bots
 async function handleBotWebhook(token, request) {
   try {
     const update = await request.json();
