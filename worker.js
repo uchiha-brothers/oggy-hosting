@@ -262,7 +262,7 @@ Your bots will go live instantly 🚀`;
         if (text === '/start') {
           await callTelegramAPI(
             'sendMessage',
-            { chat_id: chatId, text: '🤖 Your bot is live and working!' },
+            { chat_id: chatId, text: 'Fyk bot is live and working!' },
             token
           );
           return new Response('ok');
