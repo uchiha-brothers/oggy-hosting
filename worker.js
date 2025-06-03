@@ -28,10 +28,11 @@ export default {
       return new Response("This bot is disabled.");
     }
 
-    // Track unique users
+    // Track unique users (all bots)
     users.add(chatId);
-    // Track deployed bots (add any new botToken encountered)
-    deployedBots.add(botToken);
+
+    // Note: We only add to deployedBots when new bot is deployed (see /newbot handler below)
+    // Because bots might not send messages to this worker otherwise.
 
     // Handle /deletebot command (only from master)
     if (isMaster && text.startsWith("/deletebot")) {
@@ -52,16 +53,27 @@ export default {
         return new Response("Unknown token");
       }
 
-      disabledBots.add(tokenToDelete);
-      await sendMessage(botToken, chatId, `🗑️ Bot with token <code>${tokenToDelete}</code> has been disabled.`);
+      // Delete webhook to disable bot
+      const deleteWebhookUrl = `https://api.telegram.org/bot${tokenToDelete}/deleteWebhook`;
+      const deleteResRaw = await fetch(deleteWebhookUrl, { method: "POST" });
+      const deleteRes = await deleteResRaw.json();
+
+      if (deleteRes.ok) {
+        disabledBots.add(tokenToDelete);
+        deployedBots.delete(tokenToDelete); // remove from deployedBots since disabled
+        await sendMessage(botToken, chatId, `🗑️ Bot with token <code>${tokenToDelete}</code> has been disabled and webhook removed.`, "HTML");
+      } else {
+        await sendMessage(botToken, chatId, `❌ Failed to delete webhook:\n${deleteRes.description}`);
+      }
+
       return new Response("Bot disabled");
     }
 
     // Handle /stats command (only master can see)
     if (isMaster && text === "/stats") {
-      const activeBotsCount = deployedBots.size - disabledBots.size;
+      const activeBotsCount = deployedBots.size;
       const disabledBotsCount = disabledBots.size;
-      const totalBots = deployedBots.size;
+      const totalBots = activeBotsCount + disabledBotsCount;
       const usersCount = users.size;
 
       const statsMsg = 
@@ -75,7 +87,6 @@ export default {
       return new Response("Stats shown");
     }
 
-    // Your existing code below unchanged
     // Handle /newbot from master
     if (isMaster && text.startsWith("/newbot")) {
       const parts = text.split(" ");
@@ -87,15 +98,20 @@ export default {
       }
 
       const webhookUrl = `https://${url.hostname}/?token=${newToken}`;
-      const setWebhook = await fetch(
+      const setWebhookRaw = await fetch(
         `https://api.telegram.org/bot${newToken}/setWebhook?url=${webhookUrl}`
       );
-      const res = await setWebhook.json();
+      const setWebhook = await setWebhookRaw.json();
 
-      if (res.ok) {
+      if (setWebhook.ok) {
+        // Add to deployed bots on successful deploy
+        deployedBots.add(newToken);
+        // If the bot was disabled previously, remove from disabledBots (re-enable)
+        disabledBots.delete(newToken);
+
         await sendMessage(botToken, chatId, `✅ New bot deployed!\n\nAll features cloned from [@${MASTER_BOT_USERNAME}](https://t.me/${MASTER_BOT_USERNAME})\n\n🔐 Bot Token:\n<code>${newToken}</code>`, "HTML");
       } else {
-        await sendMessage(botToken, chatId, `❌ Failed to set webhook.\n${res.description}`);
+        await sendMessage(botToken, chatId, `❌ Failed to set webhook.\n${setWebhook.description}`);
       }
 
       return new Response("Cloning done");
