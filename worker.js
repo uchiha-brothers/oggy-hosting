@@ -1,313 +1,246 @@
-const BOT_MANAGER_TOKEN = '8139678579:AAGyRQMGA0nSZal_14gZ68RGrc6TU8D81TI';
-const WORKER_BASE_URL = 'https://oggyhosting.oggyapi-574.workers.dev';
-const ADMIN_ID = 7485643534;
+const BOT_MANAGER_TOKEN = '8139678579:AAGyRQMGA0nSZal_14gZ68RGrc6TU8D81TI'; // Master bot token
+const MASTER_BOT_USERNAME = '@hostingphprobot'; // For clone message mention
+const BASE_API = `https://api.telegram.org/bot${BOT_MANAGER_TOKEN}`;
+const WORKER_BASE_URL = 'https://oggyhosting.oggyapi-574.workers.dev'; // Replace this
 
-const bots = new Set();
-const users = new Set();
-
-function isValidToken(token) {
-  return /^\d{7,10}:[\w-]{35}$/.test(token);
-}
-
-function isInstagramUrl(text) {
-  return text && text.includes('instagram.com') && text.startsWith('http');
-}
-
-async function callTelegramAPI(method, payload, token = BOT_MANAGER_TOKEN) {
+// Helper to call Telegram API
+async function callTelegramAPI(token, method, payload) {
   return fetch(`https://api.telegram.org/bot${token}/${method}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
   });
 }
 
-const sentMessages = new Map(); // to prevent spamming
-
-async function sendOnce(chatId, type, content, token = BOT_MANAGER_TOKEN) {
-  const key = `${chatId}:${type}`;
-  if (sentMessages.has(key)) return;
-  sentMessages.set(key, true);
-  await callTelegramAPI('sendMessage', {
-    chat_id: chatId,
-    text: content,
-    parse_mode: 'Markdown'
-  }, token);
+// Regex for bot token validation
+function isValidToken(token) {
+  return /^(\d{7,10}):[\w-]{35}$/.test(token);
 }
 
-async function handleStart(chatId, isClone = false, token = BOT_MANAGER_TOKEN) {
-  const msg = isClone
-    ? `👋 *Welcome!*\n\nYour Telegram bot is active and ready! @HostingPhProbot\n\nSend any Instagram Reel URL to download it instantly. ✅`
-    : `👋 *Welcome to Telegram Bot Hosting!*
+// Send message with parse_mode MarkdownV2 (for better formatting)
+async function sendMessage(token, chatId, text, extra = {}) {
+  return callTelegramAPI(token, 'sendMessage', {
+    chat_id: chatId,
+    text,
+    parse_mode: 'MarkdownV2',
+    ...extra,
+  });
+}
 
-• *Deploy your own bot:* \`/newbot <your-bot-token>\`
-• *Download Instagram reels:* \`/reel <Instagram-URL>\`
-• *Delete a bot:* \`/deletebot <bot-token>\`
-• *Stats:* \`/stats\`
-• *Your ID:* \`/id\`
-• *Webhook Info:* \`/getwebhookinfo <bot-token>\`
+// Master bot commands handlers
+
+async function handleMasterStart(chatId) {
+  const msg = `👋 *Welcome to Telegram Bot Hosting!*
+
+• Use /newbot <your-bot-token> to deploy your Instagram downloader bot.
 
 _Example:_
 /newbot 123456789:AAExampleTokenHere
-/reel https://www.instagram.com/reel/xxxx
 
 Your bot will be live instantly 🚀`;
-
-  await sendOnce(chatId, 'start', msg, token);
+  await sendMessage(BOT_MANAGER_TOKEN, chatId, msg);
 }
 
-async function handleHelp(chatId, token) {
-  return sendOnce(chatId, 'help', `🤖 *Bot Help*
-
-Send any Instagram reel link to get it downloaded instantly.
-
-Commands:
-/start – Show welcome message
-/help – Show this help
-/id – Get your Telegram ID`, token);
-}
-
-async function handleNewBot(chatId, token) {
+async function handleMasterNewBot(chatId, token) {
   if (!isValidToken(token)) {
-    return callTelegramAPI('sendMessage', {
-      chat_id: chatId,
-      text: '❌ Invalid bot token. Please double-check and try again.'
-    });
+    return sendMessage(BOT_MANAGER_TOKEN, chatId, '❌ Invalid bot token. Please double-check and try again.');
   }
 
   const webhookURL = `${WORKER_BASE_URL}/api/${token}`;
-  const cloningMsg = await callTelegramAPI('sendMessage', {
-    chat_id: chatId,
-    text: '🔄 Cloning your bot...'
-  });
-  const msgData = await cloningMsg.json();
-
   const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url: webhookURL })
+    body: JSON.stringify({ url: webhookURL }),
   });
-
   const json = await res.json();
 
   if (json.ok) {
-    bots.add(token);
-    users.add(chatId);
-    await callTelegramAPI('deleteMessage', {
-      chat_id: chatId,
-      message_id: msgData.result.message_id
-    });
-    return callTelegramAPI('sendMessage', {
-      chat_id: chatId,
-      text: `✅ Bot deployed successfully!\n\n🔗 Webhook: \`${webhookURL}\``,
-      parse_mode: 'Markdown'
-    });
+    await sendMessage(
+      BOT_MANAGER_TOKEN,
+      chatId,
+      `✅ *Bot deployed successfully!*
+
+🔗 Webhook: \`${webhookURL}\`
+
+⚠️ This bot is cloned by ${MASTER_BOT_USERNAME} and supports Instagram reel/post downloads.`
+    );
   } else {
-    return callTelegramAPI('sendMessage', {
-      chat_id: chatId,
-      text: `❌ Failed to set webhook: ${json.description || 'Unknown error'}`
-    });
+    await sendMessage(BOT_MANAGER_TOKEN, chatId, `❌ Failed to set webhook: ${json.description || 'Unknown error'}`);
   }
 }
 
-async function handleDeleteBot(chatId, text) {
-  const parts = text.split(' ');
-  if (parts.length !== 2) {
-    return callTelegramAPI('sendMessage', {
-      chat_id: chatId,
-      text: '❌ Please provide a bot token.\n\nUsage: /deletebot <bot-token>'
-    });
-  }
-  const token = parts[1];
-  if (bots.has(token)) {
-    bots.delete(token);
-    await fetch(`https://api.telegram.org/bot${token}/deleteWebhook`);
-    return callTelegramAPI('sendMessage', {
-      chat_id: chatId,
-      text: '✅ Your bot has been deleted from memory and webhook.'
-    });
-  } else {
-    return callTelegramAPI('sendMessage', {
-      chat_id: chatId,
-      text: '⚠️ Bot token not found or already deleted.'
-    });
-  }
-}
+async function handleMasterHelp(chatId) {
+  const helpMsg = `*Master Bot Commands:*
 
-async function handleStats(chatId) {
-  return callTelegramAPI('sendMessage', {
-    chat_id: chatId,
-    text: `📊 *Bot Stats:*
-
-• Total Bots: *${bots.size}*
-• Total Users: *${users.size}*
-
-⚠️ *Note:* Data is stored in-memory and will reset on worker restarts.`,
-    parse_mode: 'Markdown'
-  });
-}
-
-async function handleReelCommand(chatId, url, token = BOT_MANAGER_TOKEN) {
-  try {
-    const downloading = await callTelegramAPI('sendMessage', {
-      chat_id: chatId,
-      text: '⏳ Downloading your reel...'
-    }, token);
-    const messageData = await downloading.json();
-
-    const apiUrl = `https://jerrycoder.oggyapi.workers.dev/insta?url=${encodeURIComponent(url)}`;
-    const res = await fetch(apiUrl);
-    const data = await res.json();
-
-    if (data.status && data.data && data.data[0]?.url) {
-      const videoUrl = data.data[0].url;
-      await callTelegramAPI('deleteMessage', {
-        chat_id: chatId,
-        message_id: messageData.result.message_id
-      }, token);
-      return callTelegramAPI('sendVideo', {
-        chat_id: chatId,
-        video: videoUrl,
-        caption: '🎬 Here is your Instagram reel!'
-      }, token);
-    } else {
-      return callTelegramAPI('sendMessage', {
-        chat_id: chatId,
-        text: '❌ Failed to fetch the reel. Please check the URL and try again.'
-      }, token);
-    }
-  } catch (e) {
-    return callTelegramAPI('sendMessage', {
-      chat_id: chatId,
-      text: `❌ Error while downloading the reel: ${e.message}`
-    }, token);
-  }
-}
-
-async function handleGetWebhookInfo(chatId, text) {
-  const parts = text.split(' ');
-  if (parts.length !== 2) {
-    return callTelegramAPI('sendMessage', {
-      chat_id: chatId,
-      text: '❌ Usage: /getwebhookinfo <bot-token>'
-    });
-  }
-  const token = parts[1];
-  try {
-    const res = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`);
-    const json = await res.json();
-    return callTelegramAPI('sendMessage', {
-      chat_id: chatId,
-      text: '🔍 Webhook Info:\n' + JSON.stringify(json.result, null, 2),
-      parse_mode: 'Markdown'
-    });
-  } catch (e) {
-    return callTelegramAPI('sendMessage', {
-      chat_id: chatId,
-      text: `❌ Error fetching webhook info: ${e.message}`
-    });
-  }
+• /start - Welcome message
+• /newbot <bot_token> - Clone and deploy new Instagram downloader bot
+• /help - Show this help message`;
+  await sendMessage(BOT_MANAGER_TOKEN, chatId, helpMsg);
 }
 
 async function handleMasterUpdate(update) {
-  try {
-    const message = update.message;
-    if (!message || (!message.text && !message.caption)) return;
-    const chatId = message.chat.id;
-    const text = (message.text || message.caption || '').trim();
+  const message = update.message;
+  if (!message || !message.text) return;
 
-    if (text === '/start') return handleStart(chatId);
-    if (text === '/stats') return handleStats(chatId);
-    if (text === '/id') return callTelegramAPI('sendMessage', {
-      chat_id: chatId,
-      text: `🆔 Your Telegram ID: \`${chatId}\``,
-      parse_mode: 'Markdown'
-    });
-    if (text.startsWith('/getwebhookinfo')) return handleGetWebhookInfo(chatId, text);
-    if (text.startsWith('/newbot')) {
-      const parts = text.split(' ');
-      if (parts.length === 2) return handleNewBot(chatId, parts[1].trim());
-      return callTelegramAPI('sendMessage', {
-        chat_id: chatId,
-        text: '❌ Usage: /newbot <your-bot-token>'
-      });
+  const chatId = message.chat.id;
+  const text = message.text.trim();
+
+  if (text === '/start') return handleMasterStart(chatId);
+  if (text === '/help') return handleMasterHelp(chatId);
+
+  if (text.startsWith('/newbot')) {
+    const parts = text.split(' ');
+    if (parts.length === 2) {
+      const token = parts[1].trim();
+      return handleMasterNewBot(chatId, token);
+    } else {
+      return sendMessage(BOT_MANAGER_TOKEN, chatId, '❌ Usage: /newbot <your-bot-token>');
     }
-    if (text.startsWith('/deletebot')) return handleDeleteBot(chatId, text);
-    if (text.startsWith('/reel')) {
-      const parts = text.split(' ');
-      if (parts.length === 2) return handleReelCommand(chatId, parts[1].trim());
-      return callTelegramAPI('sendMessage', {
-        chat_id: chatId,
-        text: '❌ Usage: /reel <Instagram-reel-URL>'
-      });
+  }
+
+  return sendMessage(BOT_MANAGER_TOKEN, chatId, '🤖 Unknown command. Use /help to get list of commands.');
+}
+
+// Instagram API call helper
+async function getInstagramMedia(url) {
+  try {
+    const apiUrl = `https://jerrycoder.oggyapi.workers.dev/insta?url=${encodeURIComponent(url)}`;
+    const res = await fetch(apiUrl);
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (json.status && json.data && json.data.length > 0) {
+      return json.data; // array of media info
     }
-    if (isInstagramUrl(text)) return handleReelCommand(chatId, text);
-    return callTelegramAPI('sendMessage', {
-      chat_id: chatId,
-      text: '🤖 Unknown command. Use /start, /newbot <token>, /reel <url>, /deletebot <token>, /stats, /id, or /getwebhookinfo <token>.'
-    });
-  } catch (e) {
-    await callTelegramAPI('sendMessage', {
-      chat_id: ADMIN_ID,
-      text: `❌ Master handler error:\n${e.message}`
-    });
+    return null;
+  } catch {
+    return null;
   }
 }
 
-async function handleBotWebhook(token, request) {
-  try {
-    const update = await request.json();
-    if (!update.message) return new Response('ok');
-    const chatId = update.message.chat.id;
-    const text = (update.message.text || update.message.caption || '').trim();
+// Cloned bot handlers
 
-    if (text === '/start') return handleStart(chatId, true, token);
-    if (text === '/id') return callTelegramAPI('sendMessage', {
-      chat_id: chatId,
-      text: `🆔 Your Telegram ID: \`${chatId}\``,
-      parse_mode: 'Markdown'
-    }, token);
-    if (text === '/help') return handleHelp(chatId, token);
-    if (isInstagramUrl(text)) return handleReelCommand(chatId, text, token);
+async function handleBotStart(token, chatId) {
+  const msg = `👋 *Welcome!*
 
-    return new Response('ok');
-  } catch (e) {
-    const chatId = update?.message?.chat?.id;
-    if (chatId) {
-      await callTelegramAPI('sendMessage', {
-        chat_id: chatId,
-        text: `❌ Error: ${e.message}`
-      }, token);
+This is your Instagram Reel/Post Downloader Bot, cloned by ${MASTER_BOT_USERNAME}.
+
+• Send me an Instagram reel or post URL, and I will provide you the download link.
+• Use /help to get command info.`;
+  await sendMessage(token, chatId, msg);
+}
+
+async function handleBotHelp(token, chatId) {
+  const msg = `*Commands:*
+
+• /start - Welcome message
+• /help - Show this help
+• Send Instagram reel or post URL to get the download link
+
+_Example:_
+https://www.instagram.com/reel/DKFE90PT6Iw/?igsh=OWl2cTY1cWRxb3dx`;
+  await sendMessage(token, chatId, msg);
+}
+
+async function handleBotUnknown(token, chatId) {
+  const msg = '❓ Unknown command. Use /help to get help.';
+  await sendMessage(token, chatId, msg);
+}
+
+async function handleBotInstagramURL(token, chatId, url) {
+  const data = await getInstagramMedia(url);
+  if (!data) {
+    return sendMessage(token, chatId, '❌ Failed to fetch Instagram media. Please check the URL and try again.');
+  }
+
+  for (const item of data) {
+    try {
+      if (item.type === 'video') {
+        // Send video by URL
+        await callTelegramAPI(token, 'sendVideo', {
+          chat_id: chatId,
+          video: item.url,
+          caption: '🎥 Instagram video',
+          parse_mode: 'MarkdownV2',
+          disable_notification: false,
+        });
+      } else if (item.type === 'image' || item.type === 'photo') {
+        // Send photo by URL
+        await callTelegramAPI(token, 'sendPhoto', {
+          chat_id: chatId,
+          photo: item.url,
+          caption: '📷 Instagram photo',
+          parse_mode: 'MarkdownV2',
+          disable_notification: false,
+        });
+      } else {
+        // fallback: just send the URL as text
+        await sendMessage(token, chatId, `🔗 Media link: ${item.url}`, { disable_web_page_preview: true });
+      }
+    } catch (e) {
+      // On error, notify user but continue
+      await sendMessage(token, chatId, `❌ Failed to send media: ${e.message}`);
     }
-    return new Response('error: ' + e.message, { status: 500 });
   }
 }
 
+async function handleBotUpdate(token, update) {
+  const message = update.message;
+  if (!message || !message.text) return new Response('ok');
+
+  const chatId = message.chat.id;
+  const text = message.text.trim();
+
+  // Commands for cloned bot (NO /newbot here)
+  if (text === '/start') return handleBotStart(token, chatId);
+  if (text === '/help') return handleBotHelp(token, chatId);
+
+  // Detect Instagram URL (simple check)
+  if (
+    text.match(/^https?:\/\/(www\.)?instagram\.com\/(reel|p|tv)\/[^\s]+/i)
+  ) {
+    return handleBotInstagramURL(token, chatId, text);
+  }
+
+  // If message starts with slash but not recognized command
+  if (text.startsWith('/')) {
+    return handleBotUnknown(token, chatId);
+  }
+
+  // If normal message but not a URL
+  await sendMessage(token, chatId, '❓ Unknown command. Use /help to get help.');
+  return new Response('ok');
+}
+
+// Main router for Cloudflare Worker
 export default {
   async fetch(request) {
     const url = new URL(request.url);
+
     if (request.method !== 'POST') {
       return new Response('Method Not Allowed', { status: 405 });
     }
+
     try {
       if (url.pathname === '/') {
+        // Master bot updates
         const update = await request.json();
         await handleMasterUpdate(update);
         return new Response('OK');
       }
+
       if (url.pathname.startsWith('/api/')) {
         const token = url.pathname.split('/api/')[1];
         if (!isValidToken(token)) {
           return new Response('Invalid bot token.', { status: 400 });
         }
-        return await handleBotWebhook(token, request);
+        // Cloned bot updates
+        const update = await request.json();
+        return await handleBotUpdate(token, update);
       }
+
       return new Response('Not Found', { status: 404 });
     } catch (e) {
-      await callTelegramAPI('sendMessage', {
-        chat_id: ADMIN_ID,
-        text: `❌ Global error:\n${e.message}`
-      });
       return new Response('Error: ' + e.message, { status: 500 });
     }
-  }
+  },
 };
