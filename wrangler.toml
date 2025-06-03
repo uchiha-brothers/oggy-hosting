@@ -6,3 +6,6 @@ type = "module"
 [[kv_namespaces]]
 binding = "MYBOTS_KV"
 id = "0e4b34b4eebf43efb318e2a5ec08c9a5"
+
+BOT_MANAGER_TOKEN = '8139678579:AAFv8G3emG2rQrdq1ivYo1D00kOqfT9wpoo';
+WORKER_BASE_URL = 'https://oggyhosting.oggyapi-574.workers.dev';
