@@ -52,7 +52,7 @@ Your bots will go live instantly 🚀`;
       if (!isValidToken(token)) {
         await callTelegramAPI('sendMessage', {
           chat_id: chatId,
-          text: '❌ Invalid bot token. Please double-check and try again.',
+          text: '❌ Invalid bot token format. Please double-check and try again.',
         });
         return;
       }
@@ -82,20 +82,40 @@ Your bots will go live instantly 🚀`;
       }
 
       if (json.ok) {
+        // Successfully set webhook, now get bot info
         const getMeRes = await fetch(`https://api.telegram.org/bot${token}/getMe`);
         const botInfo = await getMeRes.json();
+
+        if (!botInfo.ok) {
+          await callTelegramAPI('sendMessage', {
+            chat_id: chatId,
+            text: '❌ Failed to get bot info after webhook setup.',
+          });
+          return;
+        }
+
         const botUsername = botInfo.result?.username || 'unknown';
 
-        // Save bot info in KV per user
+        // Save bot info in KV per user - avoid duplicates
         let existing = (await BOTS_KV.get(`bots-${userId}`)) || '[]';
         let list = JSON.parse(existing);
-        list.push({ token, username: botUsername });
-        await BOTS_KV.put(`bots-${userId}`, JSON.stringify(list));
+
+        // Prevent duplicates by token
+        if (!list.find((b) => b.token === token)) {
+          list.push({ token, username: botUsername });
+          await BOTS_KV.put(`bots-${userId}`, JSON.stringify(list));
+        }
 
         await callTelegramAPI('sendMessage', {
           chat_id: chatId,
           text: `✅ *Bot deployed successfully!*\n\n🤖 @${botUsername}\n🔗 Webhook set:\n\`${webhookURL}\``,
           parse_mode: 'Markdown',
+        });
+      } else if (json.description?.includes('Unauthorized')) {
+        await callTelegramAPI('sendMessage', {
+          chat_id: chatId,
+          text:
+            '❌ Failed to set webhook: Unauthorized.\nPlease check if the bot token is correct and belongs to a valid bot.',
         });
       } else {
         await callTelegramAPI('sendMessage', {
@@ -158,7 +178,13 @@ Your bots will go live instantly 🚀`;
         });
       }
 
-      const bots = JSON.parse(data);
+      let bots;
+      try {
+        bots = JSON.parse(data);
+      } catch {
+        bots = [];
+      }
+
       if (!bots.length) {
         return callTelegramAPI('sendMessage', {
           chat_id: chatId,
@@ -166,6 +192,7 @@ Your bots will go live instantly 🚀`;
         });
       }
 
+      // Compose one message listing all bots
       const msg =
         `🤖 *Your Deployed Bots:*\n\n` +
         bots.map((b, i) => `*${i + 1}. @${b.username}*`).join('\n');
