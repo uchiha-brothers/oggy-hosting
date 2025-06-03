@@ -2,21 +2,17 @@ const BOT_MANAGER_TOKEN = '8139678579:AAGyRQMGA0nSZal_14gZ68RGrc6TU8D81TI';
 const WORKER_BASE_URL = 'https://oggyhosting.oggyapi-574.workers.dev';
 const ADMIN_ID = 7485643534;
 
-// In-memory storage (reset on worker restart/redeploy!)
 const bots = new Set();
 const users = new Set();
 
-// Validate Telegram bot token format
 function isValidToken(token) {
   return /^\d{7,10}:[\w-]{35}$/.test(token);
 }
 
-// Check if text contains Instagram URL
 function isInstagramUrl(text) {
   return text && text.includes('instagram.com') && text.startsWith('http');
 }
 
-// Call Telegram API method
 async function callTelegramAPI(method, payload, token = BOT_MANAGER_TOKEN) {
   return fetch(`https://api.telegram.org/bot${token}/${method}`, {
     method: 'POST',
@@ -25,16 +21,21 @@ async function callTelegramAPI(method, payload, token = BOT_MANAGER_TOKEN) {
   });
 }
 
-// Handle /start command for master or clone bots
 async function handleStart(chatId, isClone = false, token = BOT_MANAGER_TOKEN) {
   const msg = isClone
-    ? `👋 *Welcome!*\n\nYour Telegram bot is active and ready! @HostingPhProbot\n\nSend any Instagram Reel URL to download it instantly. ✅`
+    ? `👋 *Welcome!*
+
+Your Telegram bot is active and ready! @HostingPhProbot
+
+Send any Instagram Reel URL to download it instantly. ✅`
     : `👋 *Welcome to Telegram Bot Hosting!*
 
 • *Deploy your own bot:* \`/newbot <your-bot-token>\`
 • *Download Instagram reels:* \`/reel <Instagram-URL>\`
 • *Delete a bot:* \`/deletebot <bot-token>\`
 • *Stats:* \`/stats\`
+• *Your ID:* \`/id\`
+• *Webhook Info:* \`/getwebhookinfo <bot-token>\`
 
 _Example:_
 /newbot 123456789:AAExampleTokenHere
@@ -49,7 +50,6 @@ Your bot will be live instantly 🚀`;
   }, token);
 }
 
-// Handle /help command
 async function handleHelp(chatId, token) {
   return callTelegramAPI('sendMessage', {
     chat_id: chatId,
@@ -65,7 +65,6 @@ Commands:
   }, token);
 }
 
-// Deploy a new bot by setting webhook
 async function handleNewBot(chatId, token) {
   if (!isValidToken(token)) {
     return callTelegramAPI('sendMessage', {
@@ -84,7 +83,6 @@ async function handleNewBot(chatId, token) {
   const json = await res.json();
 
   if (json.ok) {
-    // Store bot token and user info in in-memory storage
     bots.add(token);
     users.add(chatId);
 
@@ -101,7 +99,6 @@ async function handleNewBot(chatId, token) {
   }
 }
 
-// Delete a deployed bot token
 async function handleDeleteBot(chatId, text) {
   const parts = text.split(' ');
   if (parts.length !== 2) {
@@ -110,7 +107,6 @@ async function handleDeleteBot(chatId, text) {
       text: '❌ Please provide a bot token.\n\nUsage: /deletebot <bot-token>'
     });
   }
-
   const token = parts[1];
   if (bots.has(token)) {
     bots.delete(token);
@@ -126,11 +122,9 @@ async function handleDeleteBot(chatId, text) {
   }
 }
 
-// Show stats of deployed bots and users
 async function handleStats(chatId) {
   const botCount = bots.size;
   const userCount = users.size;
-
   return callTelegramAPI('sendMessage', {
     chat_id: chatId,
     text: `📊 *Bot Stats:*
@@ -143,14 +137,12 @@ async function handleStats(chatId) {
   });
 }
 
-// Handle /reel command or direct Instagram URL
 async function handleReelCommand(chatId, url, token = BOT_MANAGER_TOKEN) {
   try {
     const downloading = await callTelegramAPI('sendMessage', {
       chat_id: chatId,
       text: '⏳ Downloading your reel...'
     }, token);
-
     const messageData = await downloading.json();
 
     const apiUrl = `https://jerrycoder.oggyapi.workers.dev/insta?url=${encodeURIComponent(url)}`;
@@ -159,13 +151,10 @@ async function handleReelCommand(chatId, url, token = BOT_MANAGER_TOKEN) {
 
     if (data.status && data.data && data.data[0]?.url) {
       const videoUrl = data.data[0].url;
-
-      // Delete "Downloading..." message
       await callTelegramAPI('deleteMessage', {
         chat_id: chatId,
         message_id: messageData.result.message_id
       }, token);
-
       return callTelegramAPI('sendVideo', {
         chat_id: chatId,
         video: videoUrl,
@@ -185,58 +174,73 @@ async function handleReelCommand(chatId, url, token = BOT_MANAGER_TOKEN) {
   }
 }
 
-// Handle updates sent to master bot
+async function handleGetWebhookInfo(chatId, text) {
+  const parts = text.split(' ');
+  if (parts.length !== 2) {
+    return callTelegramAPI('sendMessage', {
+      chat_id: chatId,
+      text: '❌ Usage: /getwebhookinfo <bot-token>'
+    });
+  }
+  const token = parts[1];
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`);
+    const json = await res.json();
+    return callTelegramAPI('sendMessage', {
+      chat_id: chatId,
+      text: '🔍 Webhook Info:\n' + JSON.stringify(json.result, null, 2),
+      parse_mode: 'Markdown'
+    });
+  } catch (e) {
+    return callTelegramAPI('sendMessage', {
+      chat_id: chatId,
+      text: `❌ Error fetching webhook info: ${e.message}`
+    });
+  }
+}
+
 async function handleMasterUpdate(update) {
   const message = update.message;
   if (!message || (!message.text && !message.caption)) return;
-
   const chatId = message.chat.id;
   const text = (message.text || message.caption || '').trim();
 
   if (text === '/start') return handleStart(chatId);
   if (text === '/stats') return handleStats(chatId);
-
+  if (text === '/id') return callTelegramAPI('sendMessage', {
+    chat_id: chatId,
+    text: `🆔 Your Telegram ID: \`${chatId}\``,
+    parse_mode: 'Markdown'
+  });
+  if (text.startsWith('/getwebhookinfo')) return handleGetWebhookInfo(chatId, text);
   if (text.startsWith('/newbot')) {
     const parts = text.split(' ');
-    if (parts.length === 2) {
-      const token = parts[1].trim();
-      return handleNewBot(chatId, token);
-    } else {
-      return callTelegramAPI('sendMessage', {
-        chat_id: chatId,
-        text: '❌ Usage: /newbot <your-bot-token>'
-      });
-    }
+    if (parts.length === 2) return handleNewBot(chatId, parts[1].trim());
+    return callTelegramAPI('sendMessage', {
+      chat_id: chatId,
+      text: '❌ Usage: /newbot <your-bot-token>'
+    });
   }
-
   if (text.startsWith('/deletebot')) return handleDeleteBot(chatId, text);
   if (text.startsWith('/reel')) {
     const parts = text.split(' ');
-    if (parts.length === 2) {
-      const url = parts[1].trim();
-      return handleReelCommand(chatId, url);
-    } else {
-      return callTelegramAPI('sendMessage', {
-        chat_id: chatId,
-        text: '❌ Usage: /reel <Instagram-reel-URL>'
-      });
-    }
+    if (parts.length === 2) return handleReelCommand(chatId, parts[1].trim());
+    return callTelegramAPI('sendMessage', {
+      chat_id: chatId,
+      text: '❌ Usage: /reel <Instagram-reel-URL>'
+    });
   }
-
   if (isInstagramUrl(text)) return handleReelCommand(chatId, text);
-
   return callTelegramAPI('sendMessage', {
     chat_id: chatId,
-    text: '🤖 Unknown command. Use /start, /newbot <token>, /reel <url>, /deletebot <token>, or /stats.'
+    text: '🤖 Unknown command. Use /start, /newbot <token>, /reel <url>, /deletebot <token>, /stats, /id, or /getwebhookinfo <token>.'
   });
 }
 
-// Handle webhook updates for deployed bots
 async function handleBotWebhook(token, request) {
   try {
     const update = await request.json();
     if (!update.message) return new Response('ok');
-
     const chatId = update.message.chat.id;
     const text = (update.message.text || update.message.caption || '').trim();
 
@@ -246,7 +250,6 @@ async function handleBotWebhook(token, request) {
       text: `🆔 Your Telegram ID: \`${chatId}\``,
       parse_mode: 'Markdown'
     }, token);
-
     if (text === '/help') return handleHelp(chatId, token);
     if (isInstagramUrl(text)) return handleReelCommand(chatId, text, token);
 
@@ -266,11 +269,9 @@ async function handleBotWebhook(token, request) {
 export default {
   async fetch(request) {
     const url = new URL(request.url);
-
     if (request.method !== 'POST') {
       return new Response('Method Not Allowed', { status: 405 });
     }
-
     try {
       if (url.pathname === '/') {
         try {
@@ -285,7 +286,6 @@ export default {
           return new Response('Error in master handler: ' + e.message, { status: 500 });
         }
       }
-
       if (url.pathname.startsWith('/api/')) {
         const token = url.pathname.split('/api/')[1];
         if (!isValidToken(token)) {
@@ -293,7 +293,6 @@ export default {
         }
         return await handleBotWebhook(token, request);
       }
-
       return new Response('Not Found', { status: 404 });
     } catch (e) {
       await callTelegramAPI('sendMessage', {
