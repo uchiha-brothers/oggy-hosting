@@ -2,3 +2,7 @@ name = "oggyhosting"
 main = "worker.js"
 compatibility_date = "2024-06-01"
 type = "module"
+
+[[kv_namespaces]]
+binding = "MYBOTS_KV"
+id = "0e4b34b4eebf43efb318e2a5ec08c9a5"
