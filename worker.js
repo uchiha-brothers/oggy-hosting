@@ -191,7 +191,7 @@ export default {
     }
 
     // Reel handler
-    const isInstaUrl = text.includes("instagram.com/reel/") || text.startsWith("/reel");
+    const isInstaUrl = text.includes("https://") || text.startsWith("/reel");
     if (!isInstaUrl) return new Response("Ignored");
 
     let reelUrl = text;
