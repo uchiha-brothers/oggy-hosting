@@ -15,3 +15,7 @@ id = "abf08d0798374112b949671dc404a367"
 [[kv_namespaces]]
 binding = "USERS_KV"
 id = "773c7cb1420f4f50a72f472954587093"
+
+[[kv_namespaces]]
+binding = "STATS_KV"
+id = "38da19ee0fbf404e83910e498b437fe7"
