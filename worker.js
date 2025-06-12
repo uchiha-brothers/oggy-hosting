@@ -24,9 +24,6 @@ export default {
       return new Response("This bot is disabled.");
     }
 
-    // Track user
-    await env.USERS_KV.put(`user-${chatId}`, "1");
-
     // /deletebot (master only)
     if (isMaster && text.startsWith("/deletebot")) {
       const tokenToDelete = text.split(" ")[1]?.trim();
@@ -174,33 +171,48 @@ export default {
 
     // /start
     if (text === "/start") {
-      await sendMessage(botToken, chatId, `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`, "HTML");
+      const userKey = `user-${botToken}-${chatId}`;
+      const userExists = await env.USERS_KV.get(userKey);
+      if (!userExists) {
+        await env.USERS_KV.put(userKey, "1");
+      }
+
+      const startMsg = isMaster
+        ? `👋🏻 <b>Welcome to the Master Bot!</b>\n\n🤖 This bot manages other bots.\nUse /newbot to clone and deploy your own Telegram bot.`
+        : `👋🏻 <b>Welcome!</b>\n\n📥 Send any <i>Instagram Reel</i> or use:\n<code>/reel &lt;url&gt;</code>\n\n🎥 I’ll download and send it to you.`;
+
+      await sendMessage(botToken, chatId, startMsg, "HTML");
       return new Response("Start handled");
     }
 
     // /help
     if (text === "/help") {
-      await sendMessage(botToken, chatId, `❓ <b>How to use this bot:</b>\n\n• Send any <i>Instagram reel URL</i>\n• Or use <code>/reel &lt;url&gt;</code>\n• The bot will fetch and send you the video\n\n🔧 For support or updates, visit <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`, "HTML");
+      const helpMsg = isMaster
+        ? `❓ <b>Master Bot Help:</b>\n\n• /newbot &lt;token&gt; — Deploy new bot\n• /deletebot &lt;token&gt; — Disable bot\n• /stats — Global stats\n• /botlist — All deployed bots\n• /mybots — Your deployed bots`
+        : `❓ <b>How to use this bot:</b>\n\n• Send an <i>Instagram reel URL</i>\n• Or use <code>/reel &lt;url&gt;</code>\n• The bot will fetch and send the video.`;
+
+      await sendMessage(botToken, chatId, helpMsg, "HTML");
       return new Response("Help shown");
     }
 
     // /stats (per bot)
-  if (text === "/stats") {
-    const today = new Date().toISOString().split("T")[0];
-    const total = await env.STATS_KV.get(`stats:${botToken}:downloads:total`) || "0";
-    const todayCount = await env.STATS_KV.get(`stats:${botToken}:downloads:${today}`) || "0";
-    const userKeys = await env.STATS_KV.list({ prefix: `stats:${botToken}:users:` });
-    const uniqueUsers = userKeys.keys.length;
+    if (text === "/stats") {
+      const today = new Date().toISOString().split("T")[0];
+      const total = await env.STATS_KV.get(`stats:${botToken}:downloads:total`) || "0";
+      const todayCount = await env.STATS_KV.get(`stats:${botToken}:downloads:${today}`) || "0";
+      const userKeys = await env.STATS_KV.list({ prefix: `stats:${botToken}:users:` });
+      const uniqueUsers = userKeys.keys.length;
 
-   const statsMsg =
-    `<b>📊 Bot Stats:</b>\n` +
-    `• Total Downloads: <code>${total}</code>\n` +
-    `• Downloads Today: <code>${todayCount}</code>\n` +
-    `• Unique Users: <code>${uniqueUsers}</code>`;
+      const statsMsg =
+        `<b>📊 Bot Stats:</b>\n` +
+        `• Total Downloads: <code>${total}</code>\n` +
+        `• Downloads Today: <code>${todayCount}</code>\n` +
+        `• Unique Users: <code>${uniqueUsers}</code>`;
 
-  await sendMessage(botToken, chatId, statsMsg, "HTML");
-  return new Response("Per-bot stats shown");
-}
+      await sendMessage(botToken, chatId, statsMsg, "HTML");
+      return new Response("Per-bot stats shown");
+    }
+
     // /id
     if (text === "/id") {
       await sendMessage(botToken, chatId, `🆔 <b>Your Chat ID:</b> <code>${chatId}</code>`, "HTML");
@@ -225,23 +237,23 @@ export default {
     const msgId = statusMsg.result?.message_id;
 
     try {
-  const json = await fetch(INSTAGRAM_API + encodeURIComponent(reelUrl)).then(r => r.json());
-  const videoUrl = json.data?.[0]?.url;
+      const json = await fetch(INSTAGRAM_API + encodeURIComponent(reelUrl)).then(r => r.json());
+      const videoUrl = json.data?.[0]?.url;
 
-  if (!videoUrl) {
-    await sendMessage(botToken, chatId, "❌ Failed to fetch the video.");
-    return new Response("No video");
-  }
+      if (!videoUrl) {
+        await sendMessage(botToken, chatId, "❌ Failed to fetch the video.");
+        return new Response("No video");
+      }
 
-  await sendVideo(botToken, chatId, videoUrl);
+      await sendVideo(botToken, chatId, videoUrl);
 
-  // 📊 Track per-bot stats
-  await trackStats(env, botToken, chatId);
-} catch (err) {
-  await sendMessage(botToken, chatId, "❌ Error downloading the reel.");
-  console.error(err);
- }
-    
+      // 📊 Track per-bot stats
+      await trackStats(env, botToken, chatId);
+    } catch (err) {
+      await sendMessage(botToken, chatId, "❌ Error downloading the reel.");
+      console.error(err);
+    }
+
     if (msgId) await deleteMessage(botToken, chatId, msgId);
     return new Response("OK");
   }
