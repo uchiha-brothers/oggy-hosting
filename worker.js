@@ -113,7 +113,7 @@ export default {
     if (isMaster && text.startsWith("/newbot")) {
       const newToken = text.split(" ")[1]?.trim();
       if (!newToken || !newToken.match(/^\d+:[\w-]{30,}$/)) {
-        await sendMessage(botToken, chatId, "❌ Invalid bot token.");
+        await sendMessage(botToken, chatId, "❌ Invalid bot token. Example : /newbot bot-token");
         return new Response("Invalid token");
       }
 
@@ -174,7 +174,7 @@ export default {
 
     // /start
     if (text === "/start") {
-      await sendMessage(botToken, chatId, `👋 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`, "HTML");
+      await sendMessage(botToken, chatId, `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`, "HTML");
       return new Response("Start handled");
     }
 
