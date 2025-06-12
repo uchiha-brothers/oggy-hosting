@@ -1,5 +1,5 @@
 const MASTER_BOT_TOKEN = "8139678579:AAEc338z-0Gt45ZPsf35DJSCbaKm8JLvju4";
-const MASTER_BOT_USERNAME = "hostingphprobot";
+const MASTER_BOT_USERNAME = "hostingphproboot";
 const INSTAGRAM_API = "https://jerrycoder.oggyapi.workers.dev/insta?url=";
 const MASTER_ADMIN_ID = "7485643534";
 
