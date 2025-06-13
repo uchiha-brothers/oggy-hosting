@@ -60,9 +60,13 @@ export default {
       const listBots = await env.DEPLOYED_BOTS_KV.list();
       const listDisabled = await env.DISABLED_BOTS_KV.list();
 
+      const userKeys = listUsers.keys.filter(k => k.name.startsWith(`user-${MASTER_BOT_TOKEN}-`));
+      const groupKeys = listUsers.keys.filter(k => k.name.startsWith(`chat-${MASTER_BOT_TOKEN}-`));
+
       const statsMsg =
-        `<b>📊 Stats:</b>\n` +
-        `• Total unique users: <code>${listUsers.keys.length}</code>\n` +
+        `<b>📊 Global Stats:</b>\n` +
+        `• Total unique users: <code>${userKeys.length}</code>\n` +
+        `• Total unique groups: <code>${groupKeys.length}</code>\n` +
         `• Total bots deployed: <code>${listBots.keys.length + listDisabled.keys.length}</code>\n` +
         `• Active bots: <code>${listBots.keys.length}</code>\n` +
         `• Disabled bots: <code>${listDisabled.keys.length}</code>`;
@@ -171,11 +175,12 @@ export default {
 
     // /start
     if (text === "/start") {
-      const userKey = `user-${botToken}-${chatId}`;
-      const userExists = await env.USERS_KV.get(userKey);
-      if (!userExists) {
-        await env.USERS_KV.put(userKey, "1");
-      }
+      const key = message.chat.type === "private"
+        ? `user-${botToken}-${chatId}`
+        : `chat-${botToken}-${chatId}`;
+
+      const already = await env.USERS_KV.get(key);
+      if (!already) await env.USERS_KV.put(key, "1");
 
       const startMsg = isMaster
         ? `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🤖 This bot manages other bots.\nUse /newbot (bot-token) to clone and deploy your own Telegram bot.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`
@@ -200,14 +205,19 @@ export default {
       const today = new Date().toISOString().split("T")[0];
       const total = await env.STATS_KV.get(`stats:${botToken}:downloads:total`) || "0";
       const todayCount = await env.STATS_KV.get(`stats:${botToken}:downloads:${today}`) || "0";
-      const userKeys = await env.STATS_KV.list({ prefix: `stats:${botToken}:users:` });
-      const uniqueUsers = userKeys.keys.length;
+      
+      const allUserStats = await env.STATS_KV.list({ prefix: `stats:${botToken}:users:` });
+      const listUsers = await env.USERS_KV.list({ prefix: `user-${botToken}-` });
+const listGroups = await env.USERS_KV.list({ prefix: `chat-${botToken}-` });
+const userCount = listUsers.keys.length;
+const groupCount = listGroups.keys.length;
 
       const statsMsg =
         `<b>📊 Bot Stats:</b>\n` +
         `• Total Downloads: <code>${total}</code>\n` +
         `• Downloads Today: <code>${todayCount}</code>\n` +
-        `• Unique Users: <code>${uniqueUsers}</code>`;
+        `• Unique Users: <code>${userCount}</code>\n` +
+        `• Unique Groups: <code>${groupCount}</code>`;
 
       await sendMessage(botToken, chatId, statsMsg, "HTML");
       return new Response("Per-bot stats shown");
