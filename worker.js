@@ -76,40 +76,75 @@ if (text === "/cancel") {
   }
 }
 
-// Handle actual broadcast message
+// --- Existing utility functions above ---
+// Utility to send media (photo/video) with caption
+async function sendMedia(token, chatId, { photo, video, caption }) {
+  const isVideo = !!video;
+  const method = isVideo ? "sendVideo" : "sendPhoto";
+  const payload = {
+    chat_id: chatId,
+    caption: caption || "",
+    parse_mode: "HTML",
+    [isVideo ? "video" : "photo"]: isVideo ? video : photo
+  };
+  return fetch(`https://api.telegram.org/bot${token}/${method}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+}
+
+// --- After your /cancel logic ---
+
 if (broadcastState.get(`${botToken}-${chatId}`)) {
+  // Stop waiting for more messages
   broadcastState.delete(`${botToken}-${chatId}`);
 
+  // Fetch both users and groups
   const userKeys = await env.USERS_KV.list({ prefix: `user-${botToken}-` });
   const groupKeys = await env.USERS_KV.list({ prefix: `chat-${botToken}-` });
-  const allChatIds = [
+  const allIds = [
     ...userKeys.keys.map(k => k.name.split("-").pop()),
-    ...groupKeys.keys.map(k => k.name.split("-").pop()),
+    ...groupKeys.keys.map(k => k.name.split("-").pop())
   ];
 
+  // Detect media
   const mediaType = message.photo ? "photo" : message.video ? "video" : null;
-  const fileId = mediaType ? message[mediaType].at(-1)?.file_id : null;
-  const caption = message.caption || (text && !mediaType ? text : ""); // fallback caption
+  const fileId = mediaType
+    ? (mediaType === "photo"
+        ? message.photo.at(-1).file_id
+        : message.video.file_id)
+    : null;
 
-  let successCount = 0;
+  // Use text as caption if media has none
+  const caption = message.caption || (text && !mediaType ? text : "");
 
-  for (const id of allChatIds) {
+  let sentCount = 0;
+
+  for (let id of allIds) {
     try {
       if (mediaType && fileId) {
-        await sendMedia(botToken, id, { [mediaType]: fileId, caption });
-      } else {
+        await sendMedia(botToken, id, {
+          [mediaType]: fileId,
+          caption
+        });
+      } else if (text) {
         await sendMessage(botToken, id, text);
       }
-      successCount++;
+      sentCount++;
     } catch (e) {
-      // Optional: log errors
+      // ignore failures silently or log/debug as needed
     }
   }
 
-  await sendMessage(botToken, chatId, `✅ Broadcast sent to ${successCount} user(s)/group(s).`);
+  await sendMessage(
+    botToken,
+    chatId,
+    `✅ Broadcast sent successfully to ${sentCount} chat${sentCount !== 1 ? "s" : ""}.`
+  );
   return new Response("Broadcast complete");
-}    
-    
+}
+        
     // /stats (master only)
     if (isMaster && text === "/stats") {
       const listUsers = await env.USERS_KV.list();
@@ -324,22 +359,6 @@ const groupCount = listGroups.keys.length;
     return new Response("OK");
   }
 };
-
-async function sendMedia(token, chatId, payload) {
-  const mediaType = payload.photo ? "sendPhoto" : payload.video ? "sendVideo" : null;
-  if (!mediaType) return;
-
-  const body = {
-    chat_id: chatId,
-    ...payload
-  };
-
-  await fetch(`https://api.telegram.org/bot${token}/${mediaType}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-}
 
 async function trackStats(env, botToken, chatId) {
   const today = new Date().toISOString().split("T")[0];
