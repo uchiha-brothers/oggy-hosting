@@ -160,7 +160,8 @@ export default {
       }
 
       if (myBots.length === 0) {
-        await sendMessage(botToken, chatId, "🤖 You haven't deployed any bots yet.ret    } else {
+        await sendMessage(botToken, chatId, "🤖 You haven't deployed any bots yet.");Add commentMore actions
+      } else {
         const msg = `<b>🤖 Your Bots:</b>\n\n` + myBots.join("\n\n");
         await sendMessage(botToken, chatId, msg, "HTML");
       }
