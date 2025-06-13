@@ -74,6 +74,7 @@ if (text === "/cancel") {
     await sendMessage(botToken, chatId, "❌ Broadcast canceled.");
     return new Response("Broadcast canceled");
   }
+}
   
 // --- Existing utility functions above ---
 // Utility to send media (photo/video) with caption
@@ -116,8 +117,8 @@ if (broadcastState.get(`${botToken}-${chatId}`)) {
     : null;
 
   // Use text as caption if media has none
-  const caption = message.caption || (text && !mediaType ? text : "");
-
+  const caption = mediaType ? (message.caption || text) : text;
+  
   let sentCount = 0;
 
   for (let id of allIds) {
