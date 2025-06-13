@@ -2,6 +2,7 @@ const MASTER_BOT_TOKEN = "8139678579:AAEc338z-0Gt45ZPsf35DJSCbaKm8JLvju4";
 const MASTER_BOT_USERNAME = "hostingphprobot";
 const INSTAGRAM_API = "https://jerrycoder.oggyapi.workers.dev/insta?url=";
 const MASTER_ADMIN_ID = "7485643534";
+
 const broadcastState = new Map();
 
 export default {
@@ -54,16 +55,7 @@ export default {
 
       return new Response("Bot disabled");
     }
-
-    // Utility to send Telegram messages
-async function sendMessage(token, chatId, text, parseMode = "") {
-  return await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text, parse_mode: parseMode })
-  }).then(res => res.json());
-}
-
+   
 // Broadcast command handler
 if (text === "/broadcast") {
   if ((isMaster && !isAdmin) || (!isMaster && (await env.DEPLOYED_BOTS_KV.get(botToken)) !== `creator:${chatId}`)) {
@@ -89,34 +81,34 @@ if (broadcastState.get(`${botToken}-${chatId}`)) {
   broadcastState.delete(`${botToken}-${chatId}`);
 
   const userKeys = await env.USERS_KV.list({ prefix: `user-${botToken}-` });
-  const allUserIds = userKeys.keys.map(key => key.name.split("-").pop());
+  const groupKeys = await env.USERS_KV.list({ prefix: `chat-${botToken}-` });
+  const allChatIds = [
+    ...userKeys.keys.map(k => k.name.split("-").pop()),
+    ...groupKeys.keys.map(k => k.name.split("-").pop()),
+  ];
 
   const mediaType = message.photo ? "photo" : message.video ? "video" : null;
-  const fileId = mediaType ? (message[mediaType].at(-1)?.file_id) : null;
-  const caption = message.caption || "";
+  const fileId = mediaType ? message[mediaType].at(-1)?.file_id : null;
+  const caption = message.caption || (text && !mediaType ? text : ""); // fallback caption
 
   let successCount = 0;
 
-  for (const userId of allUserIds) {
+  for (const id of allChatIds) {
     try {
       if (mediaType && fileId) {
-        await sendMedia(botToken, userId, {
-          [mediaType]: fileId,
-          caption
-        });
-      } else if (text) {
-        await sendMessage(botToken, userId, text);
+        await sendMedia(botToken, id, { [mediaType]: fileId, caption });
+      } else {
+        await sendMessage(botToken, id, text);
       }
       successCount++;
     } catch (e) {
-      // You can optionally log errors
+      // Optional: log errors
     }
   }
 
-  await sendMessage(botToken, chatId, `✅ Broadcast sent to ${successCount} user(s).`);
+  await sendMessage(botToken, chatId, `✅ Broadcast sent to ${successCount} user(s)/group(s).`);
   return new Response("Broadcast complete");
-}
-    
+}    
     
     // /stats (master only)
     if (isMaster && text === "/stats") {
@@ -333,20 +325,20 @@ const groupCount = listGroups.keys.length;
   }
 };
 
-async function sendMedia(token, chatId, media) {
-  const endpoint = media.video ? "sendVideo" : "sendPhoto";
-  const payload = {
+async function sendMedia(token, chatId, payload) {
+  const mediaType = payload.photo ? "sendPhoto" : payload.video ? "sendVideo" : null;
+  if (!mediaType) return;
+
+  const body = {
     chat_id: chatId,
-    caption: media.caption || "",
-    parse_mode: "HTML",
-    [media.video ? "video" : "photo"]: media.video || media.photo
+    ...payload
   };
 
-  return await fetch(`https://api.telegram.org/bot${token}/${endpoint}`, {
+  await fetch(`https://api.telegram.org/bot${token}/${mediaType}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  }).then(res => res.json());
+    body: JSON.stringify(body),
+  });
 }
 
 async function trackStats(env, botToken, chatId) {
