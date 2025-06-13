@@ -2,6 +2,7 @@ const MASTER_BOT_TOKEN = "8139678579:AAEc338z-0Gt45ZPsf35DJSCbaKm8JLvju4";
 const MASTER_BOT_USERNAME = "hostingphprobot";
 const INSTAGRAM_API = "https://jerrycoder.oggyapi.workers.dev/insta?url=";
 const MASTER_ADMIN_ID = "7485643534";
+const broadcastState = new Map();
 
 export default {
   async fetch(request, env, ctx) {
@@ -54,6 +55,83 @@ export default {
       return new Response("Bot disabled");
     }
 
+    // Utility to send Telegram messages
+async function sendMessage(token, chatId, text, parseMode = "") {
+  return await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, text, parse_mode: parseMode })
+  }).then(res => res.json());
+}
+
+// Utility to send media
+async function sendMedia(token, chatId, media) {
+  const endpoint = media.video ? "sendVideo" : "sendPhoto";
+  const payload = {
+    chat_id: chatId,
+    caption: media.caption,
+    [media.video ? "video" : "photo"]: media.video || media.photo,
+    parse_mode: "HTML"
+  };
+  return await fetch(`https://api.telegram.org/bot${token}/${endpoint}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  }).then(res => res.json());
+}
+
+// Broadcast command handler
+if (text === "/broadcast") {
+  if ((isMaster && !isAdmin) || (!isMaster && (await env.DEPLOYED_BOTS_KV.get(botToken)) !== `creator:${chatId}`)) {
+    await sendMessage(botToken, chatId, "❌ You are not permitted to use /broadcast.");
+    return new Response("Unauthorized broadcast");
+  }
+  broadcastState.set(`${botToken}-${chatId}`, true);
+  await sendMessage(botToken, chatId, "📢 Send the broadcast message now or /cancel to stop.");
+  return new Response("Broadcast initiated");
+}
+
+// Cancel broadcast
+if (text === "/cancel") {
+  if (broadcastState.get(`${botToken}-${chatId}`)) {
+    broadcastState.delete(`${botToken}-${chatId}`);
+    await sendMessage(botToken, chatId, "❌ Broadcast canceled.");
+    return new Response("Broadcast canceled");
+  }
+}
+
+// Handle actual broadcast message
+if (broadcastState.get(`${botToken}-${chatId}`)) {
+  broadcastState.delete(`${botToken}-${chatId}`);
+
+  const keys = await env.USERS_KV.list({ prefix: `user-${botToken}-` });
+  const groupKeys = await env.USERS_KV.list({ prefix: `chat-${botToken}-` });
+  const allRecipients = [...keys.keys, ...groupKeys.keys];
+
+  const media = message.photo || message.video;
+  let successCount = 0;
+
+  for (const key of allRecipients) {
+    const id = key.name.split("-").pop();
+    try {
+      if (media) {
+        const fileId = media.at(-1).file_id;
+        const caption = message.caption || "";
+        await sendMedia(botToken, id, {
+          photo: message.photo ? fileId : undefined,
+          video: message.video ? fileId : undefined,
+          caption
+        });
+      } else {
+        await sendMessage(botToken, id, text);
+      }
+      successCount++;
+    } catch (e) {}
+  }
+  await sendMessage(botToken, chatId, `✅ Broadcast sent successfully to ${successCount} users/groups.`);
+  return new Response("Broadcast complete");
+}
+    
     // /stats (master only)
     if (isMaster && text === "/stats") {
       const listUsers = await env.USERS_KV.list();
