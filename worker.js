@@ -205,10 +205,10 @@ export default {
       const today = new Date().toISOString().split("T")[0];
       const total = await env.STATS_KV.get(`stats:${botToken}:downloads:total`) || "0";
       const todayCount = await env.STATS_KV.get(`stats:${botToken}:downloads:${today}`) || "0";
-
-      const allUserStats = await env.STATS_KV.list({ prefix: `stats:${botToken}:users:` });
-      const userCount = allUserStats.keys.filter(k => k.name.includes(":users:user-")).length;
-      const groupCount = allUserStats.keys.filter(k => k.name.includes(":users:chat-")).length;
+      
+      const listGroups = await env.USERS_KV.list({ prefix: `chat-${botToken}-` });
+      const userCount = listUsers.keys.length;
+      const groupCount = listGroups.keys.length;
 
       const statsMsg =
         `<b>📊 Bot Stats:</b>\n` +
