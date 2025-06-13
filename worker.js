@@ -366,7 +366,6 @@ const groupCount = listGroups.keys.length;
 
     if (msgId) await deleteMessage(botToken, chatId, msgId);
     return new Response("OK");
-  }
 };
 
 async function trackStats(env, botToken, chatId) {
