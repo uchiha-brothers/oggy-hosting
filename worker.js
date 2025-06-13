@@ -74,13 +74,10 @@ if (text === "/cancel") {
     await sendMessage(botToken, chatId, "❌ Broadcast canceled.");
     return new Response("Broadcast canceled");
   }
-}
-
-// Detect if we are in broadcast mode
+  
 if (broadcastState.get(`${botToken}-${chatId}`)) {
   broadcastState.delete(`${botToken}-${chatId}`);
 
-  // Gather private users and group chat IDs
   const userKeys = await env.USERS_KV.list({ prefix: `user-${botToken}-` });
   const groupKeys = await env.USERS_KV.list({ prefix: `chat-${botToken}-` });
   const allIds = [
@@ -88,52 +85,73 @@ if (broadcastState.get(`${botToken}-${chatId}`)) {
     ...groupKeys.keys.map(k => k.name.split("-").pop()),
   ];
 
-  // Determine media type
-  const photoArr = message.photo;
-  const videoObj = message.video;
-  const hasPhoto = Array.isArray(photoArr) && photoArr.length > 0;
-  const hasVideo = videoObj && videoObj.file_id;
-  const fileId = hasPhoto
-    ? photoArr[photoArr.length - 1].file_id
-    : hasVideo
-    ? videoObj.file_id
-    : null;
+  const hasPhoto = Array.isArray(message.photo) && message.photo.length > 0;
+  const hasVideo = !!message.video;
+  const hasMedia = hasPhoto || hasVideo;
+  const caption = message.caption || text || "";
 
-  const caption = message.caption || (text && !hasPhoto && !hasVideo ? text : "");
+  let fileId = null;
+  let fileType = null;
+
+  if (hasPhoto) {
+    fileId = message.photo[message.photo.length - 1].file_id;
+    fileType = "photo";
+  } else if (hasVideo) {
+    fileId = message.video.file_id;
+    fileType = "video";
+  }
+
+  let mediaBuffer = null;
+  let fileMime = null;
+
+  if (fileId) {
+    // 1. Get file path from Telegram
+    const fileResp = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${fileId}`);
+    const fileData = await fileResp.json();
+    const filePath = fileData.result.file_path;
+
+    // 2. Download media binary
+    const tgFileUrl = `https://api.telegram.org/file/bot${botToken}/${filePath}`;
+    const mediaResp = await fetch(tgFileUrl);
+    mediaBuffer = await mediaResp.arrayBuffer();
+    fileMime = mediaResp.headers.get("content-type");
+  }
 
   let sentCount = 0;
 
-  // Broadcast to all IDs
   for (const id of allIds) {
     try {
-      if (hasPhoto || hasVideo) {
-        const endpoint = hasVideo ? "sendVideo" : "sendPhoto";
-        const payload = {
-          chat_id: id,
-          [hasVideo ? "video" : "photo"]: fileId,
-          caption,
-          parse_mode: "HTML"
-        };
-        await fetch(`https://api.telegram.org/bot${botToken}/${endpoint}`, {
+      if (fileId && mediaBuffer) {
+        const form = new FormData();
+        form.append("chat_id", id);
+        form.append("caption", caption);
+        form.append("parse_mode", "HTML");
+        form.append(fileType, new Blob([mediaBuffer], { type: fileMime }), `file.${fileType === "photo" ? "jpg" : "mp4"}`);
+
+        await fetch(`https://api.telegram.org/bot${botToken}/send${fileType === "photo" ? "Photo" : "Video"}`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
+          body: form
         });
-      } else {
+      } else if (text) {
         await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ chat_id: id, text, parse_mode: "HTML" })
+          body: JSON.stringify({
+            chat_id: id,
+            text,
+            parse_mode: "HTML"
+          })
         });
       }
+
       sentCount++;
-    } catch (err) {
-      // silent error
+    } catch (e) {
+      // Ignore individual failures
     }
   }
 
   await sendMessage(botToken, chatId, `✅ Broadcast sent to ${sentCount} chats.`);
-  return new Response("Broadcast complete");
+  return new Response("Broadcast done");
 }
         
     // /stats (master only)
