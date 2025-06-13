@@ -76,72 +76,63 @@ if (text === "/cancel") {
   }
 }
 
-// --- Existing utility functions above ---
-// Utility to send media (photo/video) with caption
-async function sendMedia(token, chatId, { photo, video, caption }) {
-  const isVideo = !!video;
-  const method = isVideo ? "sendVideo" : "sendPhoto";
-  const payload = {
-    chat_id: chatId,
-    caption: caption || "",
-    parse_mode: "HTML",
-    [isVideo ? "video" : "photo"]: isVideo ? video : photo
-  };
-  return fetch(`https://api.telegram.org/bot${token}/${method}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
-}
-
-// --- After your /cancel logic ---
-
+// Detect if we are in broadcast mode
 if (broadcastState.get(`${botToken}-${chatId}`)) {
-  // Stop waiting for more messages
   broadcastState.delete(`${botToken}-${chatId}`);
 
-  // Fetch both users and groups
+  // Gather private users and group chat IDs
   const userKeys = await env.USERS_KV.list({ prefix: `user-${botToken}-` });
   const groupKeys = await env.USERS_KV.list({ prefix: `chat-${botToken}-` });
   const allIds = [
     ...userKeys.keys.map(k => k.name.split("-").pop()),
-    ...groupKeys.keys.map(k => k.name.split("-").pop())
+    ...groupKeys.keys.map(k => k.name.split("-").pop()),
   ];
 
-  // Detect media
-  const mediaType = message.photo ? "photo" : message.video ? "video" : null;
-  const fileId = mediaType
-    ? (mediaType === "photo"
-        ? message.photo.at(-1).file_id
-        : message.video.file_id)
+  // Determine media type
+  const photoArr = message.photo;
+  const videoObj = message.video;
+  const hasPhoto = Array.isArray(photoArr) && photoArr.length > 0;
+  const hasVideo = videoObj && videoObj.file_id;
+  const fileId = hasPhoto
+    ? photoArr[photoArr.length - 1].file_id
+    : hasVideo
+    ? videoObj.file_id
     : null;
 
-  // Use text as caption if media has none
-  const caption = message.caption || (text && !mediaType ? text : "");
+  const caption = message.caption || (text && !hasPhoto && !hasVideo ? text : "");
 
   let sentCount = 0;
 
-  for (let id of allIds) {
+  // Broadcast to all IDs
+  for (const id of allIds) {
     try {
-      if (mediaType && fileId) {
-        await sendMedia(botToken, id, {
-          [mediaType]: fileId,
-          caption
+      if (hasPhoto || hasVideo) {
+        const endpoint = hasVideo ? "sendVideo" : "sendPhoto";
+        const payload = {
+          chat_id: id,
+          [hasVideo ? "video" : "photo"]: fileId,
+          caption,
+          parse_mode: "HTML"
+        };
+        await fetch(`https://api.telegram.org/bot${botToken}/${endpoint}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
         });
-      } else if (text) {
-        await sendMessage(botToken, id, text);
+      } else {
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: id, text, parse_mode: "HTML" })
+        });
       }
       sentCount++;
-    } catch (e) {
-      // ignore failures silently or log/debug as needed
+    } catch (err) {
+      // silent error
     }
   }
 
-  await sendMessage(
-    botToken,
-    chatId,
-    `✅ Broadcast sent successfully to ${sentCount} chat${sentCount !== 1 ? "s" : ""}.`
-  );
+  await sendMessage(botToken, chatId, `✅ Broadcast sent to ${sentCount} chats.`);
   return new Response("Broadcast complete");
 }
         
