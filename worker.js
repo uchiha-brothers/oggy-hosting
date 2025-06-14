@@ -179,9 +179,6 @@ if (broadcastState.get(`${botToken}-${chatId}`)) {
       return new Response("Bot list shown");
     }
 
-// Track newbot state
-const newBotState = new Map(); // chatId => true
-
 // Step 1: Start newbot
 if (isMaster && text === "/newbot") {
   newBotState.set(chatId, true);
