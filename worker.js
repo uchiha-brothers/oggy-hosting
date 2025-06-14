@@ -81,6 +81,9 @@ if (broadcastState.get(`${botToken}-${chatId}`)) {
   // Remove broadcast state so it doesn't repeat
   broadcastState.delete(`${botToken}-${chatId}`);
 
+  // Notify admin the broadcast has started
+  await sendMessage(botToken, chatId, "📡 Broadcasting your message...");
+
   const userKeys = await env.USERS_KV.list({ prefix: `user-${botToken}-` });
   const groupKeys = await env.USERS_KV.list({ prefix: `chat-${botToken}-` });
   const allIds = [
@@ -90,28 +93,35 @@ if (broadcastState.get(`${botToken}-${chatId}`)) {
 
   let sent = 0, failed = 0;
 
-  const photo = message.photo?.at(-1)?.file_id;
-  const caption = message.caption || "";
+  try {
+    const photo = message.photo?.at(-1)?.file_id;
+    const caption = message.caption || "";
+    const textMsg = message.text;
 
-  // 🛑 Check for missing media
-  if (!photo) {
-    await sendMessage(botToken, chatId, "❌ Please send a photo with or without a caption to broadcast.");
-    return new Response("No photo for broadcast");
-  }
-
-  // ✅ Broadcast image to all
-  for (const id of allIds) {
-    try {
-      await sendMedia(botToken, id, "photo", photo, caption);
-      sent++;
-    } catch (err) {
-      console.error(`Broadcast error to ${id}:`, err.message || err);
-      failed++;
+    for (const id of allIds) {
+      try {
+        if (photo) {
+          await sendMedia(botToken, id, "photo", photo, caption);
+        } else if (textMsg) {
+          await sendMessage(botToken, id, textMsg);
+        } else {
+          // Neither photo nor text found
+          continue;
+        }
+        sent++;
+      } catch (err) {
+        console.error(`❌ Failed to send to ${id}:`, err.message || err);
+        failed++;
+      }
     }
-  }
 
-  await sendMessage(botToken, chatId, `📢 Broadcast completed.\n✅ Sent: ${sent}\n❌ Failed: ${failed}`);
-  return new Response("Broadcast complete");
+    await sendMessage(botToken, chatId, `✅ Broadcast completed.\n📤 Sent: ${sent}\n❌ Failed: ${failed}`);
+    return new Response("Broadcast complete");
+  } catch (err) {
+    console.error("Broadcast error:", err.message || err);
+    await sendMessage(botToken, chatId, `❌ Broadcast failed:\n${err.message || "Unknown error"}`);
+    return new Response("Broadcast failed");
+  }
 }
         
     // /stats (master only)
