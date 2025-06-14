@@ -5,6 +5,7 @@ const MASTER_ADMIN_ID = "7485643534";
 
 const broadcastState = new Map();
 const newBotState = new Map();
+const deleteBotState = new Map();
 
 export default {
   async fetch(request, env, ctx) {
@@ -28,34 +29,52 @@ export default {
     }
 
     // /deletebot (master only)
-    if (isMaster && text.startsWith("/deletebot")) {
-      const tokenToDelete = text.split(" ")[1]?.trim();
-      if (!tokenToDelete) {
-        await sendMessage(botToken, chatId, "❌ Please provide a bot token to delete.");
-        return new Response("No token to delete");
-      }
-      if (tokenToDelete === MASTER_BOT_TOKEN) {
-        await sendMessage(botToken, chatId, "❌ You cannot disable the master bot.");
-        return new Response("Attempt to disable master bot");
-      }
+    if (isMaster && text === "/deletebot") {
+  deleteBotState.set(chatId, true);
+  await sendMessage(botToken, chatId, "🗑️ Please send the bot token you want to disable or press /cancel to stop.");
+  return new Response("Awaiting token to delete");
+}
 
-      const deployed = await env.DEPLOYED_BOTS_KV.get(tokenToDelete);
-      if (!deployed) {
-        await sendMessage(botToken, chatId, "❌ Bot token not found or not deployed.");
-        return new Response("Unknown token");
-      }
+    if (isMaster && text === "/cancel" && deleteBotState.get(chatId)) {
+  deleteBotState.delete(chatId);
+  await sendMessage(botToken, chatId, "❌ Bot deletion cancelled.");
+  return new Response("Cancelled delete flow");
+}
 
-      const deleteRes = await fetch(`https://api.telegram.org/bot${tokenToDelete}/deleteWebhook`, { method: "POST" }).then(r => r.json());
-      if (deleteRes.ok) {
-        await env.DISABLED_BOTS_KV.put(tokenToDelete, "1");
-        await env.DEPLOYED_BOTS_KV.delete(tokenToDelete);
-        await sendMessage(botToken, chatId, `🗑️ Bot with token <code>${tokenToDelete}</code> has been disabled and webhook removed.`, "HTML");
-      } else {
-        await sendMessage(botToken, chatId, `❌ Failed to delete webhook:\n${deleteRes.description}`);
-      }
+if (isMaster && deleteBotState.get(chatId)) {
+  if (text.match(/^\d+:[\w-]{30,}$/)) {
+    deleteBotState.delete(chatId);
+    const tokenToDelete = text.trim();
 
-      return new Response("Bot disabled");
+    if (tokenToDelete === MASTER_BOT_TOKEN) {
+      await sendMessage(botToken, chatId, "❌ You cannot disable the master bot.");
+      return new Response("Attempt to disable master bot");
     }
+
+    const deployed = await env.DEPLOYED_BOTS_KV.get(tokenToDelete);
+    if (!deployed) {
+      await sendMessage(botToken, chatId, "❌ Bot token not found or not deployed.");
+      return new Response("Unknown token");
+    }
+
+    const deleteRes = await fetch(`https://api.telegram.org/bot${tokenToDelete}/deleteWebhook`, {
+      method: "POST"
+    }).then(r => r.json());
+
+    if (deleteRes.ok) {
+      await env.DISABLED_BOTS_KV.put(tokenToDelete, "1");
+      await env.DEPLOYED_BOTS_KV.delete(tokenToDelete);
+      await sendMessage(botToken, chatId, `🗑️ Bot with token <code>${tokenToDelete}</code> has been disabled and webhook removed.`, "HTML");
+    } else {
+      await sendMessage(botToken, chatId, `❌ Failed to delete webhook:\n${deleteRes.description}`);
+    }
+
+    return new Response("Bot disabled");
+  } else {
+    await sendMessage(botToken, chatId, "❌ Invalid bot token. Please send a valid token or /cancel.");
+    return new Response("Invalid token in delete flow");
+  }
+}      
    
 // Broadcast command handler
 if (text === "/broadcast") {
