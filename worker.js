@@ -6,6 +6,7 @@ const MASTER_ADMIN_ID = "7485643534";
 const broadcastState = new Map();
 const newBotState = new Map();
 const deleteBotState = new Map();
+const getWebhookState = new Map();
 
 export default {
   async fetch(request, env, ctx) {
@@ -339,6 +340,51 @@ const groupCount = listGroups.keys.length;
       await sendMessage(botToken, chatId, statsMsg, "HTML");
       return new Response("Per-bot stats shown");
     }
+
+    // Step 1: Start getwebhook flow
+if (isMaster && text === "/getwebhook") {
+  getWebhookState.set(chatId, true);
+  await sendMessage(botToken, chatId, "🔍 Please send the bot token to fetch webhook info, or send /cancel to stop.");
+  return new Response("Awaiting token for webhook info");
+}
+
+// Cancel getwebhook flow
+if (isMaster && text === "/cancel" && getWebhookState.get(chatId)) {
+  getWebhookState.delete(chatId);
+  await sendMessage(botToken, chatId, "❌ Get webhook info flow cancelled.");
+  return new Response("Cancelled webhook info flow");
+}
+
+// Step 2: Token received while in getwebhook flow
+if (isMaster && getWebhookState.get(chatId)) {
+  if (text.match(/^\d+:[\w-]{30,}$/)) {
+    getWebhookState.delete(chatId);
+    const token = text.trim();
+
+    // Call Telegram getWebhookInfo
+    const webhookInfo = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`).then(r => r.json());
+
+    if (!webhookInfo.ok) {
+      await sendMessage(botToken, chatId, `❌ Failed to fetch webhook info:\n${webhookInfo.description}`);
+      return new Response("Failed to get webhook info");
+    }
+
+    const info = webhookInfo.result;
+    const status = 
+      `<b>📬 Webhook Info:</b>\n` +
+      `• URL: <code>${info.url || "(none)"}</code>\n` +
+      `• Has Custom Certificate: <code>${info.has_custom_certificate}</code>\n` +
+      `• Pending Updates: <code>${info.pending_update_count}</code>\n` +
+      `• Last Error Time: <code>${info.last_error_date || "N/A"}</code>\n` +
+      `• Last Error Message: <code>${info.last_error_message || "N/A"}</code>`;
+
+    await sendMessage(botToken, chatId, status, "HTML");
+    return new Response("Webhook info sent");
+  } else {
+    await sendMessage(botToken, chatId, "❌ Invalid token. Please send a valid bot token or /cancel.");
+    return new Response("Invalid token in getwebhook flow");
+  }
+}
 
     // /id
     if (text === "/id") {
