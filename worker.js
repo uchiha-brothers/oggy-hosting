@@ -4,6 +4,7 @@ const INSTAGRAM_API = "https://jerrycoder.oggyapi.workers.dev/insta?url=";
 const MASTER_ADMIN_ID = "7485643534";
 
 const broadcastState = new Map();
+const newBotState = new Map();
 
 export default {
   async fetch(request, env, ctx) {
@@ -178,44 +179,56 @@ if (broadcastState.get(`${botToken}-${chatId}`)) {
       return new Response("Bot list shown");
     }
 
-    // /newbot (master only)
-    if (isMaster && text.startsWith("/newbot")) {
-      const newToken = text.split(" ")[1]?.trim();
-      if (!newToken || !newToken.match(/^\d+:[\w-]{30,}$/)) {
-        await sendMessage(botToken, chatId, "❌ Invalid bot token. Example : /newbot bot-token");
-        return new Response("Invalid token");
-      }
+// /newbot (step 1 - prompt)
+if (isMaster && text === "/newbot") {
+  newBotState.set(chatId, true);
+  await sendMessage(botToken, chatId, "🧩 Please send me the bot token from @BotFather or press /cancel to stop.");
+  return new Response("Awaiting token");
+}
 
-      const cloningMsg = await sendMessage(botToken, chatId, "🛠️ Cloning bot...");
-      const cloningMsgId = cloningMsg.result?.message_id;
+// /cancel during newbot
+if (isMaster && text === "/cancel" && newBotState.get(chatId)) {
+  newBotState.delete(chatId);
+  await sendMessage(botToken, chatId, "❌ Bot creation cancelled.");
+  return new Response("Bot creation cancelled");
+}
 
-      const webhookUrl = `https://${url.hostname}/?token=${newToken}`;
-      const setWebhook = await fetch(`https://api.telegram.org/bot${newToken}/setWebhook?url=${webhookUrl}`).then(r => r.json());
+// /newbot (step 2 - receive token and deploy)
+if (isMaster && newBotState.get(chatId) && text.match(/^\d+:[\w-]{30,}$/)) {
+  newBotState.delete(chatId);
 
-      if (setWebhook.ok) {
-        await env.DEPLOYED_BOTS_KV.put(newToken, `creator:${chatId}`);
-        await env.DISABLED_BOTS_KV.delete(newToken);
+  const newToken = text.trim();
+  const cloningMsg = await sendMessage(botToken, chatId, "🛠️ Cloning bot...");
+  const cloningMsgId = cloningMsg.result?.message_id;
 
-        const botInfo = await fetch(`https://api.telegram.org/bot${newToken}/getMe`).then(r => r.json());
-        const newBotUsername = botInfo.ok ? botInfo.result.username : null;
+  const webhookUrl = `https://${url.hostname}/?token=${newToken}`;
+  const setWebhook = await fetch(`https://api.telegram.org/bot${newToken}/setWebhook?url=${webhookUrl}`).then(r => r.json());
 
-        if (cloningMsgId) {
-          await deleteMessage(botToken, chatId, cloningMsgId);
-        }
+  if (setWebhook.ok) {
+    await env.DEPLOYED_BOTS_KV.put(newToken, `creator:${chatId}`);
+    await env.DISABLED_BOTS_KV.delete(newToken);
 
-        const replyMessage =
-          `✅ <b>New bot deployed!</b>\n\n` +
-          `All features cloned! Here is bot ${newBotUsername ? `(@${newBotUsername})` : "(username not found)"}\n\n` +
-          `🔐 <b>Bot Token:</b>\n<code>${newToken}</code>`;
+    const botInfo = await fetch(`https://api.telegram.org/bot${newToken}/getMe`).then(r => r.json());
+    const newBotUsername = botInfo.ok ? botInfo.result.username : null;
 
-        await sendMessage(botToken, chatId, replyMessage, "HTML");
-      } else {
-        if (cloningMsgId) await deleteMessage(botToken, chatId, cloningMsgId);
-        await sendMessage(botToken, chatId, `❌ Failed to set webhook.\n${setWebhook.description}`);
-      }
-
-      return new Response("Cloning done");
+    if (cloningMsgId) {
+      await deleteMessage(botToken, chatId, cloningMsgId);
     }
+
+    const replyMessage =
+      `✅ <b>New bot deployed!</b>\n\n` +
+      `All features cloned! Here is bot ${newBotUsername ? `(@${newBotUsername})` : "(username not found)"}\n\n` +
+      `🔐 <b>Bot Token:</b>\n<code>${newToken}</code>`;
+
+    await sendMessage(botToken, chatId, replyMessage, "HTML");
+  } else {
+    if (cloningMsgId) await deleteMessage(botToken, chatId, cloningMsgId);
+    await sendMessage(botToken, chatId, `❌ Failed to set webhook.\n${setWebhook.description}`);
+  }
+
+  return new Response("Cloning finished");
+}
+
 
     // /mybots
     if (isMaster && text === "/mybots") {
