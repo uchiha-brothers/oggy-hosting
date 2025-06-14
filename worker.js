@@ -4,6 +4,7 @@ const INSTAGRAM_API = "https://jerrycoder.oggyapi.workers.dev/insta?url=";
 const MASTER_ADMIN_ID = "7485643534";
 
 const broadcastState = new Map();
+const newBotState = new Map();
 
 export default {
   async fetch(request, env, ctx) {
