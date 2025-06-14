@@ -76,7 +76,6 @@ if (text === "/cancel") {
   }
 }
   
-if (broadcastState.get(`${botToken}-${chatId}`)) {
 // If waiting for broadcast message
 if (broadcastState.get(`${botToken}-${chatId}`)) {
   broadcastState.delete(`${botToken}-${chatId}`);
@@ -113,6 +112,8 @@ if (broadcastState.get(`${botToken}-${chatId}`)) {
   await sendMessage(botToken, chatId, `✅ Broadcast completed.\n\n📤 Sent: ${sent}\n❌ Failed: ${failed}`);
   return new Response("Broadcast finished");
 }
+
+
         
     // /stats (master only)
     if (isMaster && text === "/stats") {
