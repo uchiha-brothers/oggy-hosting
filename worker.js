@@ -119,7 +119,6 @@ if (broadcastState.get(`${botToken}-${chatId}`)) {
   // Use text as caption if media has none
   const caption = mediaType ? (message.caption || text) : text;
   
-  let sentCount = 0;
 let sentCount = 0;
 let failedCount = 0;
 
