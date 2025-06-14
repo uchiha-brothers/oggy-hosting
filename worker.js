@@ -4,7 +4,6 @@ const INSTAGRAM_API = "https://jerrycoder.oggyapi.workers.dev/insta?url=";
 const MASTER_ADMIN_ID = "7485643534";
 
 const broadcastState = new Map();
-const newBotState = new Map();
 
 export default {
   async fetch(request, env, ctx) {
@@ -179,56 +178,58 @@ if (broadcastState.get(`${botToken}-${chatId}`)) {
       return new Response("Bot list shown");
     }
 
-// /newbot (step 1 - prompt)
+// Track newbot state
+const newBotState = new Map(); // chatId => true
+
+// Step 1: Start newbot
 if (isMaster && text === "/newbot") {
   newBotState.set(chatId, true);
   await sendMessage(botToken, chatId, "🧩 Please send me the bot token from @BotFather or press /cancel to stop.");
   return new Response("Awaiting token");
 }
 
-// /cancel during newbot
+// Cancel newbot flow
 if (isMaster && text === "/cancel" && newBotState.get(chatId)) {
   newBotState.delete(chatId);
   await sendMessage(botToken, chatId, "❌ Bot creation cancelled.");
-  return new Response("Bot creation cancelled");
+  return new Response("Cancelled");
 }
 
-// /newbot (step 2 - receive token and deploy)
-if (isMaster && newBotState.get(chatId) && text.match(/^\d+:[\w-]{30,}$/)) {
-  newBotState.delete(chatId);
+// Step 2: Token received while in newbot flow
+if (isMaster && newBotState.get(chatId)) {
+  if (text.match(/^\d+:[\w-]{30,}$/)) {
+    newBotState.delete(chatId);
+    const newToken = text.trim();
+    const cloningMsg = await sendMessage(botToken, chatId, "🛠️ Cloning bot...");
+    const cloningMsgId = cloningMsg.result?.message_id;
 
-  const newToken = text.trim();
-  const cloningMsg = await sendMessage(botToken, chatId, "🛠️ Cloning bot...");
-  const cloningMsgId = cloningMsg.result?.message_id;
+    const webhookUrl = `https://${url.hostname}/?token=${newToken}`;
+    const setWebhook = await fetch(`https://api.telegram.org/bot${newToken}/setWebhook?url=${webhookUrl}`).then(r => r.json());
 
-  const webhookUrl = `https://${url.hostname}/?token=${newToken}`;
-  const setWebhook = await fetch(`https://api.telegram.org/bot${newToken}/setWebhook?url=${webhookUrl}`).then(r => r.json());
+    if (setWebhook.ok) {
+      await env.DEPLOYED_BOTS_KV.put(newToken, `creator:${chatId}`);
+      await env.DISABLED_BOTS_KV.delete(newToken);
 
-  if (setWebhook.ok) {
-    await env.DEPLOYED_BOTS_KV.put(newToken, `creator:${chatId}`);
-    await env.DISABLED_BOTS_KV.delete(newToken);
+      const botInfo = await fetch(`https://api.telegram.org/bot${newToken}/getMe`).then(r => r.json());
+      const newBotUsername = botInfo.ok ? botInfo.result.username : null;
 
-    const botInfo = await fetch(`https://api.telegram.org/bot${newToken}/getMe`).then(r => r.json());
-    const newBotUsername = botInfo.ok ? botInfo.result.username : null;
-
-    if (cloningMsgId) {
-      await deleteMessage(botToken, chatId, cloningMsgId);
+      if (cloningMsgId) await deleteMessage(botToken, chatId, cloningMsgId);
+      const replyMessage =
+        `✅ <b>New bot deployed!</b>\n\n` +
+        `All features cloned! Here is bot ${newBotUsername ? `(@${newBotUsername})` : "(username not found)"}\n\n` +
+        `🔐 <b>Bot Token:</b>\n<code>${newToken}</code>`;
+      await sendMessage(botToken, chatId, replyMessage, "HTML");
+    } else {
+      if (cloningMsgId) await deleteMessage(botToken, chatId, cloningMsgId);
+      await sendMessage(botToken, chatId, `❌ Failed to set webhook.\n${setWebhook.description}`);
     }
-
-    const replyMessage =
-      `✅ <b>New bot deployed!</b>\n\n` +
-      `All features cloned! Here is bot ${newBotUsername ? `(@${newBotUsername})` : "(username not found)"}\n\n` +
-      `🔐 <b>Bot Token:</b>\n<code>${newToken}</code>`;
-
-    await sendMessage(botToken, chatId, replyMessage, "HTML");
+    return new Response("Cloning finished");
   } else {
-    if (cloningMsgId) await deleteMessage(botToken, chatId, cloningMsgId);
-    await sendMessage(botToken, chatId, `❌ Failed to set webhook.\n${setWebhook.description}`);
+    // Invalid message/token during /newbot flow
+    await sendMessage(botToken, chatId, "❌ Invalid bot token. Please send a valid token or /cancel.");
+    return new Response("Invalid token format");
   }
-
-  return new Response("Cloning finished");
 }
-
 
     // /mybots
     if (isMaster && text === "/mybots") {
