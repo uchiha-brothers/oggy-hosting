@@ -3,6 +3,9 @@ const MASTER_BOT_USERNAME = "hostingphprobot";
 const INSTAGRAM_API = "https://jerrycoder.oggyapi.workers.dev/insta?url=";
 const MASTER_ADMIN_ID = "7485643534";
 
+const broadcastState = new Map();
+const newBotState = new Map();
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -53,7 +56,73 @@ export default {
 
       return new Response("Bot disabled");
     }
+   
+// Broadcast command handler
+if (text === "/broadcast") {
+  if ((isMaster && !isAdmin) || (!isMaster && (await env.DEPLOYED_BOTS_KV.get(botToken)) !== `creator:${chatId}`)) {
+    await sendMessage(botToken, chatId, "❌ You are not permitted to use /broadcast.");
+    return new Response("Unauthorized broadcast");
+  }
+  broadcastState.set(`${botToken}-${chatId}`, true);
+  await sendMessage(botToken, chatId, "📢 Send a *text message* or *photo* now to broadcast.\nSend /cancel to stop.", "Markdown");
+  return new Response("Broadcast initiated");
+}
 
+// Cancel broadcast
+if (text === "/cancel") {
+  if (broadcastState.get(`${botToken}-${chatId}`)) {
+    broadcastState.delete(`${botToken}-${chatId}`);
+    await sendMessage(botToken, chatId, "❌ Broadcast canceled.");
+    return new Response("Broadcast canceled");
+  }
+}
+  
+if (broadcastState.get(`${botToken}-${chatId}`)) {
+  broadcastState.delete(`${botToken}-${chatId}`); // prevent repeat
+
+  await sendMessage(botToken, chatId, "📡 Broadcasting your message...");
+
+  const userKeys = await env.USERS_KV.list({ prefix: `user-${botToken}-` });
+  const groupKeys = await env.USERS_KV.list({ prefix: `chat-${botToken}-` });
+
+  const allIds = [
+    ...userKeys.keys.map(k => k.name.split("-").pop()),
+    ...groupKeys.keys.map(k => k.name.split("-").pop())
+  ];
+
+  let sent = 0, failed = 0;
+
+  try {
+    const photo = message.photo?.at(-1)?.file_id;
+    const caption = message.caption || "";
+    const text = message.text;
+
+    for (const id of allIds) {
+      try {
+        if (photo) {
+          await sendPhoto(botToken, id, photo, caption);
+        } else if (text) {
+          await sendMessage(botToken, id, text);
+        } else {
+          // nothing to send
+          continue;
+        }
+        sent++;
+      } catch (err) {
+        console.error(`❌ Failed to send to ${id}:`, err.message || err);
+        failed++;
+      }
+    }
+
+    await sendMessage(botToken, chatId, `✅ Broadcast completed.\n📤 Sent: ${sent}\n❌ Failed: ${failed}`);
+    return new Response("Broadcast complete");
+  } catch (err) {
+    console.error("Broadcast error:", err.message || err);
+    await sendMessage(botToken, chatId, `❌ Broadcast failed:\n${err.message || "Unknown error"}`);
+    return new Response("Broadcast failed");
+  }
+}
+        
     // /stats (master only)
     if (isMaster && text === "/stats") {
       const listUsers = await env.USERS_KV.list();
@@ -110,44 +179,55 @@ export default {
       return new Response("Bot list shown");
     }
 
-    // /newbot (master only)
-    if (isMaster && text.startsWith("/newbot")) {
-      const newToken = text.split(" ")[1]?.trim();
-      if (!newToken || !newToken.match(/^\d+:[\w-]{30,}$/)) {
-        await sendMessage(botToken, chatId, "❌ Invalid bot token. Example : /newbot bot-token");
-        return new Response("Invalid token");
-      }
+// Step 1: Start newbot
+if (isMaster && text === "/newbot") {
+  newBotState.set(chatId, true);
+  await sendMessage(botToken, chatId, "🧩 Please send me the bot token from @BotFather or press /cancel to stop.");
+  return new Response("Awaiting token");
+}
 
-      const cloningMsg = await sendMessage(botToken, chatId, "🛠️ Cloning bot...");
-      const cloningMsgId = cloningMsg.result?.message_id;
+// Cancel newbot flow
+if (isMaster && text === "/cancel" && newBotState.get(chatId)) {
+  newBotState.delete(chatId);
+  await sendMessage(botToken, chatId, "❌ Bot creation cancelled.");
+  return new Response("Cancelled");
+}
 
-      const webhookUrl = `https://${url.hostname}/?token=${newToken}`;
-      const setWebhook = await fetch(`https://api.telegram.org/bot${newToken}/setWebhook?url=${webhookUrl}`).then(r => r.json());
+// Step 2: Token received while in newbot flow
+if (isMaster && newBotState.get(chatId)) {
+  if (text.match(/^\d+:[\w-]{30,}$/)) {
+    newBotState.delete(chatId);
+    const newToken = text.trim();
+    const cloningMsg = await sendMessage(botToken, chatId, "🛠️ Cloning bot...");
+    const cloningMsgId = cloningMsg.result?.message_id;
 
-      if (setWebhook.ok) {
-        await env.DEPLOYED_BOTS_KV.put(newToken, `creator:${chatId}`);
-        await env.DISABLED_BOTS_KV.delete(newToken);
+    const webhookUrl = `https://${url.hostname}/?token=${newToken}`;
+    const setWebhook = await fetch(`https://api.telegram.org/bot${newToken}/setWebhook?url=${webhookUrl}`).then(r => r.json());
 
-        const botInfo = await fetch(`https://api.telegram.org/bot${newToken}/getMe`).then(r => r.json());
-        const newBotUsername = botInfo.ok ? botInfo.result.username : null;
+    if (setWebhook.ok) {
+      await env.DEPLOYED_BOTS_KV.put(newToken, `creator:${chatId}`);
+      await env.DISABLED_BOTS_KV.delete(newToken);
 
-        if (cloningMsgId) {
-          await deleteMessage(botToken, chatId, cloningMsgId);
-        }
+      const botInfo = await fetch(`https://api.telegram.org/bot${newToken}/getMe`).then(r => r.json());
+      const newBotUsername = botInfo.ok ? botInfo.result.username : null;
 
-        const replyMessage =
-          `✅ <b>New bot deployed!</b>\n\n` +
-          `All features cloned! Here is bot ${newBotUsername ? `(@${newBotUsername})` : "(username not found)"}\n\n` +
-          `🔐 <b>Bot Token:</b>\n<code>${newToken}</code>`;
-
-        await sendMessage(botToken, chatId, replyMessage, "HTML");
-      } else {
-        if (cloningMsgId) await deleteMessage(botToken, chatId, cloningMsgId);
-        await sendMessage(botToken, chatId, `❌ Failed to set webhook.\n${setWebhook.description}`);
-      }
-
-      return new Response("Cloning done");
+      if (cloningMsgId) await deleteMessage(botToken, chatId, cloningMsgId);
+      const replyMessage =
+        `✅ <b>New bot deployed!</b>\n\n` +
+        `All features cloned! Here is bot ${newBotUsername ? `(@${newBotUsername})` : "(username not found)"}\n\n` +
+        `🔐 <b>Bot Token:</b>\n<code>${newToken}</code>`;
+      await sendMessage(botToken, chatId, replyMessage, "HTML");
+    } else {
+      if (cloningMsgId) await deleteMessage(botToken, chatId, cloningMsgId);
+      await sendMessage(botToken, chatId, `❌ Failed to set webhook.\n${setWebhook.description}`);
     }
+    return new Response("Cloning finished");
+  } else {
+    // Invalid message/token during /newbot flow
+    await sendMessage(botToken, chatId, "❌ Invalid bot token. Please send a valid token or /cancel.");
+    return new Response("Invalid token format");
+  }
+}
 
     // /mybots
     if (isMaster && text === "/mybots") {
@@ -175,20 +255,20 @@ export default {
 
     // /start
     if (text === "/start") {
-      const key = message.chat.type === "private"
-        ? `user-${botToken}-${chatId}`
-        : `chat-${botToken}-${chatId}`;
+  const chatType = message.chat.type;
+  const keyPrefix = chatType === "private" ? "user" : "chat";
+  const key = `${keyPrefix}-${botToken}-${chatId}`;
 
-      const already = await env.USERS_KV.get(key);
-      if (!already) await env.USERS_KV.put(key, "1");
+  const already = await env.USERS_KV.get(key);
+  if (!already) await env.USERS_KV.put(key, "1");
 
-      const startMsg = isMaster
+  const startMsg = isMaster
         ? `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🤖 This bot manages other bots.\nUse /newbot (bot-token) to clone and deploy your own Telegram bot.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`
         : `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`;
 
       await sendMessage(botToken, chatId, startMsg, "HTML");
-      return new Response("Start handled");
-    }
+  return new Response("Started");
+}
 
     // /help
     if (text === "/help") {
@@ -266,7 +346,7 @@ const groupCount = listGroups.keys.length;
 
     if (msgId) await deleteMessage(botToken, chatId, msgId);
     return new Response("OK");
-  }
+   }
 };
 
 async function trackStats(env, botToken, chatId) {
@@ -285,6 +365,18 @@ async function trackStats(env, botToken, chatId) {
   // Mark user as unique for this bot
   const userKey = `stats:${botToken}:users:${chatId}`;
   await env.STATS_KV.put(userKey, "1");
+}
+
+async function sendPhoto(token, chatId, fileId, caption = "") {
+  return fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chatId,
+      photo: fileId,
+      caption
+    })
+  }).then(res => res.json());
 }
 
 async function sendMessage(botToken, chatId, text, parse_mode = "HTML") {
