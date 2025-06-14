@@ -76,16 +76,14 @@ if (text === "/cancel") {
   }
 }
   
-// Inside your main handler
 if (broadcastState.get(`${botToken}-${chatId}`)) {
-  // Remove broadcast state so it doesn't repeat
-  broadcastState.delete(`${botToken}-${chatId}`);
+  broadcastState.delete(`${botToken}-${chatId}`); // prevent repeat
 
-  // Notify admin the broadcast has started
   await sendMessage(botToken, chatId, "📡 Broadcasting your message...");
 
   const userKeys = await env.USERS_KV.list({ prefix: `user-${botToken}-` });
   const groupKeys = await env.USERS_KV.list({ prefix: `chat-${botToken}-` });
+
   const allIds = [
     ...userKeys.keys.map(k => k.name.split("-").pop()),
     ...groupKeys.keys.map(k => k.name.split("-").pop())
@@ -96,16 +94,16 @@ if (broadcastState.get(`${botToken}-${chatId}`)) {
   try {
     const photo = message.photo?.at(-1)?.file_id;
     const caption = message.caption || "";
-    const textMsg = message.text;
+    const text = message.text;
 
     for (const id of allIds) {
       try {
         if (photo) {
-          await sendMedia(botToken, id, "photo", photo, caption);
-        } else if (textMsg) {
-          await sendMessage(botToken, id, textMsg);
+          await sendPhoto(botToken, id, photo, caption);
+        } else if (text) {
+          await sendMessage(botToken, id, text);
         } else {
-          // Neither photo nor text found
+          // nothing to send
           continue;
         }
         sent++;
@@ -357,20 +355,16 @@ async function trackStats(env, botToken, chatId) {
   await env.STATS_KV.put(userKey, "1");
 }
 
-async function sendMedia(token, chatId, mediaType, fileId, caption = "") {
-  const payload = {
-    chat_id: chatId,
-    caption,
-    parse_mode: "HTML",
-  };
-  payload[mediaType] = fileId;
-
-  const method = mediaType === "photo" ? "sendPhoto" : "sendVideo";
-  return fetch(`https://api.telegram.org/bot${token}/${method}`, {
+async function sendPhoto(token, chatId, fileId, caption = "") {
+  return fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chatId,
+      photo: fileId,
+      caption
+    })
+  }).then(res => res.json());
 }
 
 async function sendMessage(botToken, chatId, text, parse_mode = "HTML") {
