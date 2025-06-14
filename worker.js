@@ -120,28 +120,31 @@ if (broadcastState.get(`${botToken}-${chatId}`)) {
   const caption = mediaType ? (message.caption || text) : text;
   
   let sentCount = 0;
+let sentCount = 0;
+let failedCount = 0;
 
-  for (let id of allIds) {
-    try {
-      if (mediaType && fileId) {
-        await sendMedia(botToken, id, {
-          [mediaType]: fileId,
-          caption
-        });
-      } else if (text) {
-        await sendMessage(botToken, id, text);
-      }
-      sentCount++;
-    } catch (e) {
-      // ignore failures silently or log/debug as needed
+for (let id of allIds) {
+  try {
+    if (mediaType && fileId) {
+      await sendMedia(botToken, id, {
+        [mediaType]: fileId,
+        caption
+      });
+    } else if (text) {
+      await sendMessage(botToken, id, text);
     }
+    sentCount++;
+  } catch (e) {
+    failedCount++;
+    console.error(`❌ Failed to send to ${id}:`, e.message);
   }
+}
 
-  await sendMessage(
-    botToken,
-    chatId,
-    `✅ Broadcast sent successfully to ${sentCount} chat${sentCount !== 1 ? "s" : ""}.`
-  );
+await sendMessage(
+  botToken,
+  chatId,
+  `✅ Broadcast sent to ${sentCount} chat${sentCount !== 1 ? "s" : ""}.\n❌ Failed to send to ${failedCount}.`
+);
   return new Response("Broadcast complete");
 }
         
@@ -266,20 +269,20 @@ if (broadcastState.get(`${botToken}-${chatId}`)) {
 
     // /start
     if (text === "/start") {
-      const key = message.chat.type === "private"
-        ? `user-${botToken}-${chatId}`
-        : `chat-${botToken}-${chatId}`;
+  const chatType = message.chat.type;
+  const keyPrefix = chatType === "private" ? "user" : "chat";
+  const key = `${keyPrefix}-${botToken}-${chatId}`;
 
-      const already = await env.USERS_KV.get(key);
-      if (!already) await env.USERS_KV.put(key, "1");
+  const already = await env.USERS_KV.get(key);
+  if (!already) await env.USERS_KV.put(key, "1");
 
-      const startMsg = isMaster
+  const startMsg = isMaster
         ? `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🤖 This bot manages other bots.\nUse /newbot (bot-token) to clone and deploy your own Telegram bot.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`
         : `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`;
 
       await sendMessage(botToken, chatId, startMsg, "HTML");
-      return new Response("Start handled");
-    }
+  return new Response("Started");
+}
 
     // /help
     if (text === "/help") {
