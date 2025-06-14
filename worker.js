@@ -230,6 +230,20 @@ if (isMaster && newBotState.get(chatId)) {
       const botInfo = await fetch(`https://api.telegram.org/bot${newToken}/getMe`).then(r => r.json());
       const newBotUsername = botInfo.ok ? botInfo.result.username : null;
 
+      await fetch(`https://api.telegram.org/bot${newToken}/setMyCommands`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      commands: [
+        { command: "start", description: "Start the bot" },
+        { command: "broadcast", description: "Send message to all users" },
+        { command: "reel", description: "To download reels" },
+        { command: "stats", description: "Show bot stats" },
+        { command: "help", description: "How to use the bot" }
+      ]
+    })
+  });
+      
       if (cloningMsgId) await deleteMessage(botToken, chatId, cloningMsgId);
       const replyMessage =
         `✅ <b>New bot deployed!</b>\n\n` +
