@@ -76,8 +76,9 @@ if (text === "/cancel") {
   }
 }
   
-// Check if a broadcast is active
+// Inside your main handler
 if (broadcastState.get(`${botToken}-${chatId}`)) {
+  // Remove broadcast state so it doesn't repeat
   broadcastState.delete(`${botToken}-${chatId}`);
 
   const userKeys = await env.USERS_KV.list({ prefix: `user-${botToken}-` });
@@ -89,28 +90,30 @@ if (broadcastState.get(`${botToken}-${chatId}`)) {
 
   let sent = 0, failed = 0;
 
-  // Only process photo
   const photo = message.photo?.at(-1)?.file_id;
   const caption = message.caption || "";
 
+  // 🛑 Check for missing media
   if (!photo) {
-    await sendMessage(botToken, chatId, "❌ Please send an image with or without a caption.");
-    return new Response("Invalid broadcast content");
+    await sendMessage(botToken, chatId, "❌ Please send a photo with or without a caption to broadcast.");
+    return new Response("No photo for broadcast");
   }
 
+  // ✅ Broadcast image to all
   for (const id of allIds) {
     try {
       await sendMedia(botToken, id, "photo", photo, caption);
       sent++;
-    } catch (e) {
+    } catch (err) {
+      console.error(`Broadcast error to ${id}:`, err.message || err);
       failed++;
-      console.error(`Failed to send to ${id}:`, e.message || e);
     }
   }
 
-  await sendMessage(botToken, chatId, `✅ Image broadcast completed.\n\n📤 Sent: ${sent}\n❌ Failed: ${failed}`);
-  return new Response("Image broadcast finished");
-}        
+  await sendMessage(botToken, chatId, `📢 Broadcast completed.\n✅ Sent: ${sent}\n❌ Failed: ${failed}`);
+  return new Response("Broadcast complete");
+}
+        
     // /stats (master only)
     if (isMaster && text === "/stats") {
       const listUsers = await env.USERS_KV.list();
