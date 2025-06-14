@@ -76,7 +76,7 @@ if (text === "/cancel") {
   }
 }
   
-// If waiting for broadcast message
+// Check if a broadcast is active
 if (broadcastState.get(`${botToken}-${chatId}`)) {
   broadcastState.delete(`${botToken}-${chatId}`);
 
@@ -89,19 +89,18 @@ if (broadcastState.get(`${botToken}-${chatId}`)) {
 
   let sent = 0, failed = 0;
 
-  const mediaType = message.photo ? "photo" : null;
-  const fileId = mediaType ? message.photo.at(-1).file_id : null;
-  const caption = message.caption || text;
+  // Only process photo
+  const photo = message.photo?.at(-1)?.file_id;
+  const caption = message.caption || "";
+
+  if (!photo) {
+    await sendMessage(botToken, chatId, "❌ Please send an image with or without a caption.");
+    return new Response("Invalid broadcast content");
+  }
 
   for (const id of allIds) {
     try {
-      if (mediaType && fileId) {
-        await sendMedia(botToken, id, mediaType, fileId, caption);
-      } else if (text) {
-        await sendMessage(botToken, id, text);
-      } else {
-        continue; // Ignore unsupported content
-      }
+      await sendMedia(botToken, id, "photo", photo, caption);
       sent++;
     } catch (e) {
       failed++;
@@ -109,12 +108,9 @@ if (broadcastState.get(`${botToken}-${chatId}`)) {
     }
   }
 
-  await sendMessage(botToken, chatId, `✅ Broadcast completed.\n\n📤 Sent: ${sent}\n❌ Failed: ${failed}`);
-  return new Response("Broadcast finished");
-}
-
-
-        
+  await sendMessage(botToken, chatId, `✅ Image broadcast completed.\n\n📤 Sent: ${sent}\n❌ Failed: ${failed}`);
+  return new Response("Image broadcast finished");
+}        
     // /stats (master only)
     if (isMaster && text === "/stats") {
       const listUsers = await env.USERS_KV.list();
