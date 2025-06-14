@@ -285,7 +285,9 @@ if (isMaster && newBotState.get(chatId)) {
         ? `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🤖 This bot manages other bots.\nUse /newbot (bot-token) to clone and deploy your own Telegram bot.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`
         : `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`;
 
-      await sendMessage(botToken, chatId, startMsg, "HTML");
+      await sendMessage(botToken, chatId, startMsg, "HTML", {
+  disable_web_page_preview: true
+});
   return new Response("Started");
 }
 
@@ -295,7 +297,9 @@ if (isMaster && newBotState.get(chatId)) {
         ? `❓ <b>How to use this bot:</b>\n\n• Send any <i>Instagram reel URL</i>\n• Or use <code>/reel &lt;url&gt;</code>\n• The bot will fetch and send you the video\n\n❓ <b>Master Bot Help:</b>\n\n• /newbot &lt;token&gt; — Deploy new bot\n• /deletebot &lt;token&gt; — Disable bot\n• /stats — Global stats\n• /mybots — Your deployed bots\n\n🔧 For support or updates, visit <a href="https://t.me/oggy24help">@Oggy_Workshop</a>`
         : `❓ <b>How to use this bot:</b>\n\n• Send any <i>Instagram reel URL</i>\n• Or use <code>/reel &lt;url&gt;</code>\n• The bot will fetch and send you the video\n\n🔧 For support or updates, visit <a href="https://t.me/oggy24help">@Oggy_Workshop</a>`;
 
-      await sendMessage(botToken, chatId, helpMsg, "HTML");
+      await sendMessage(botToken, chatId, helpMsg, "HTML", {
+  disable_web_page_preview: true
+});
       return new Response("Help shown");
     }
 
@@ -402,7 +406,7 @@ async function sendMessage(botToken, chatId, text, parse_mode = "HTML") {
   return await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text, parse_mode })
+    body: JSON.stringify({ chat_id: chatId, text, parse_mode, disable_web_page_preview: true })
   }).then(r => r.json());
 }
 
