@@ -77,30 +77,26 @@ if (text === "/cancel") {
 }
   
 // --- Existing utility functions above ---
-// Utility to send media (photo/video) with caption
-async function sendMedia(token, chatId, { photo, video, caption }) {
-  const isVideo = !!video;
-  const method = isVideo ? "sendVideo" : "sendPhoto";
+async function sendMedia(token, chatId, mediaType, fileId, caption = "") {
   const payload = {
     chat_id: chatId,
-    caption: caption || "",
+    caption,
     parse_mode: "HTML",
-    [isVideo ? "video" : "photo"]: isVideo ? video : photo
   };
+  payload[mediaType] = fileId;
+
+  const method = mediaType === "video" ? "sendVideo" : "sendPhoto";
   return fetch(`https://api.telegram.org/bot${token}/${method}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
   });
 }
 
-// --- After your /cancel logic ---
-
 if (broadcastState.get(`${botToken}-${chatId}`)) {
-  // Stop waiting for more messages
   broadcastState.delete(`${botToken}-${chatId}`);
 
-  // Fetch both users and groups
+  // Get recipients
   const userKeys = await env.USERS_KV.list({ prefix: `user-${botToken}-` });
   const groupKeys = await env.USERS_KV.list({ prefix: `chat-${botToken}-` });
   const allIds = [
@@ -108,43 +104,36 @@ if (broadcastState.get(`${botToken}-${chatId}`)) {
     ...groupKeys.keys.map(k => k.name.split("-").pop())
   ];
 
-  // Detect media
   const mediaType = message.photo ? "photo" : message.video ? "video" : null;
   const fileId = mediaType
-    ? (mediaType === "photo"
-        ? message.photo.at(-1).file_id
-        : message.video.file_id)
+    ? (mediaType === "photo" ? message.photo.at(-1).file_id : message.video.file_id)
     : null;
+  const caption = mediaType ? (message.caption || "") : "";
 
-  // Use text as caption if media has none
-  const caption = mediaType ? (message.caption || text) : text;
-  
-let sentCount = 0;
-let failedCount = 0;
+  let sentCount = 0;
+  let failedCount = 0;
 
-for (let id of allIds) {
-  try {
-    if (mediaType && fileId) {
-      await sendMedia(botToken, id, {
-        [mediaType]: fileId,
-        caption
-      });
-    } else if (text) {
-      await sendMessage(botToken, id, text);
+  for (let id of allIds) {
+    try {
+      if (mediaType && fileId) {
+        await sendMedia(botToken, id, mediaType, fileId, caption);
+      } else if (text) {
+        await sendMessage(botToken, id, text);
+      }
+      sentCount++;
+    } catch (err) {
+      failedCount++;
+      console.error(`❌ Failed to send to ${id}:`, err.message || err);
     }
-    sentCount++;
-  } catch (e) {
-    failedCount++;
-    console.error(`❌ Failed to send to ${id}:`, e.message);
   }
-}
 
-await sendMessage(
-  botToken,
-  chatId,
-  `✅ Broadcast sent to ${sentCount} chat${sentCount !== 1 ? "s" : ""}.\n❌ Failed to send to ${failedCount}.`
-);
-  return new Response("Broadcast complete");
+  await sendMessage(
+    botToken,
+    chatId,
+    `📢 Broadcast complete!\n✅ Sent: ${sentCount}\n❌ Failed: ${failedCount}`
+  );
+
+  return new Response("Broadcast completed");
 }
         
     // /stats (master only)
