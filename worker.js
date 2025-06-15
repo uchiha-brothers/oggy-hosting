@@ -334,9 +334,7 @@ if (isMaster && text === "/mybots") {
   await sendMessage(botToken, chatId, startMsg, "HTML", inlineKeyboard);
   return new Response("Start message sent");
 }
-
-const callback = update.callback_query;
-
+ 
 if (callback) {
   const data = callback.data;
   const fromId = callback.from.id;
