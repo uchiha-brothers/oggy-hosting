@@ -361,37 +361,26 @@ if (callback) {
     inline_keyboard: [[{ text: "⬅️ Back to Start", callback_data: "start" }]],
   };
 
-  // Get current bot's info
-  const botInfo = await fetch(`https://api.telegram.org/bot${botToken}/getMe`).then(r => r.json());
-  const botUsername = botInfo.ok ? botInfo.result.username : "(unknown)";
-  const botName = botInfo.ok ? botInfo.result.first_name : "(unknown)";
-  const botId = botInfo.ok ? botInfo.result.id : null;
-
   let creatorMsg = "";
 
   if (isMaster) {
-    // For master bot, assume master is you (static or set via ENV)
-    const masterInfo = await fetch(`https://api.telegram.org/bot${botToken}/getChat?chat_id=${masterId}`).then(r => r.json());
-    const masterName = masterInfo.ok ? masterInfo.result.first_name : "Unknown";
-    const masterUsername = masterInfo.ok ? masterInfo.result.username : "unknown";
-
     creatorMsg =
       `⍟───[ ᴍᴀꜱᴛᴇʀ ʙᴏᴛ ᴅᴇᴛᴀɪʟꜱ ]───⍟\n\n` +
-      `• ʙᴏᴛ ɴᴀᴍᴇ : <a href="https://t.me/${botUsername}">${botName}</a>\n` +
-      `• ʙᴏᴛ ᴜꜱᴇʀɴᴀᴍᴇ : @${botUsername}\n\n` +
-      `• ᴏᴡɴᴇʀ ɴᴀᴍᴇ : ${masterName}\n` +
-      `• ᴏᴡɴᴇʀ ᴜꜱᴇʀɴᴀᴍᴇ : @${masterUsername}\n` +
-      `• ᴅᴍ ʟɪɴᴋ : <a href="https://t.me/${masterUsername}">t.me/${masterUsername}</a>`;
+      `• ʙᴏᴛ ɴᴀᴍᴇ : <a href="https://t.me/botUsername">botName</a>\n` +
+      `• ʙᴏᴛ ᴜꜱᴇʀɴᴀᴍᴇ : @botUsername\n\n` +
+      `• ᴏᴡɴᴇʀ ɴᴀᴍᴇ : masterName\n` +
+      `• ᴏᴡɴᴇʀ ᴜꜱᴇʀɴᴀᴍᴇ : @masterUsername\n` +
+      `• ᴅᴍ ʟɪɴᴋ : <a href="https://t.me/masterUsername">t.me/masterUsername</a>`;
   } else {  
     creatorMsg =
       `⍟───[ ᴄʟᴏɴᴇᴅ ʙᴏᴛ ᴅᴇᴛᴀɪʟꜱ ]───⍟\n\n` +
-      `• ʙᴏᴛ ɴᴀᴍᴇ : <a href="https://t.me/${botUsername}">${botName}</a>\n` +
-      `• ʙᴏᴛ ᴜꜱᴇʀɴᴀᴍᴇ : @${botUsername}\n\n` +
+      `• ʙᴏᴛ ɴᴀᴍᴇ : <a href="https://t.me/botUsername">botName</a>\n` +
+      `• ʙᴏᴛ ᴜꜱᴇʀɴᴀᴍᴇ : @botUsername\n\n` +
       `• ᴄʟᴏɴᴇᴅ ʙʏ : ownerName\n` +
       `• ᴜꜱᴇʀɴᴀᴍᴇ : @ownerUsername\n` +
       `• ᴅᴍ ʟɪɴᴋ : <a href="https://t.me/ownerUsername">t.me/ownerUsername</a>\n\n` +
-      `• ᴍᴀꜱᴛᴇʀ ʙᴏᴛ : <a href="https://t.me/${masterUsername}">@${masterUsername}</a>\n` +
-      `• ᴍᴀꜱᴛᴇʀ ɴᴀᴍᴇ : ${masterName}`;
+      `• ᴍᴀꜱᴛᴇʀ ʙᴏᴛ : <a href="https://t.me/masterUsername">@masterUsername</a>\n` +
+      `• ᴍᴀꜱᴛᴇʀ ɴᴀᴍᴇ : masterName`;
   }
 
   await editMessage(botToken, chatId, msgId, creatorMsg, "HTML", backKeyboard, {
