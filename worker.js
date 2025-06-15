@@ -381,7 +381,7 @@ if (callback) {
         `• ᴏᴡɴᴇʀ ᴜꜱᴇʀɴᴀᴍᴇ : @${masterUsername}\n` +
         `• ᴅᴍ ʟɪɴᴋ : <a href="https://t.me/${masterUsername}">t.me/${masterUsername}</a>`;
     } else {
-      const creatorId = ownerId; // replace with your stored creator ID
+      const creatorId = ownerId; // Replace with actual creator's ID
       const ownerInfo = await fetch(`https://api.telegram.org/bot${MASTER_BOT_TOKEN}/getChat?chat_id=${creatorId}`).then(r => r.json());
       const ownerName = ownerInfo.ok ? ownerInfo.result.first_name : "Unknown";
       const ownerUsername = ownerInfo.ok ? ownerInfo.result.username || "(no username)" : "unknown";
@@ -409,10 +409,16 @@ if (callback) {
 
   } catch (err) {
     console.error("Error in /creator:", err);
-    await sendMessage(botToken, chatId, "⚠️ An error occurred while fetching creator details. Please try again later.", "HTML", {
+
+    const errorMessage = (err?.message || String(err)).slice(0, 500); // limit long errors
+    const fallback = "⚠️ An error occurred while fetching creator details.\n\n";
+    const fullErrorMsg = fallback + `<code>${errorMessage}</code>`;
+
+    await sendMessage(botToken, chatId, fullErrorMsg, "HTML", {
       reply_to_message_id: msgId,
     });
-    return new Response("Error shown to user");
+
+    return new Response("Error sent to user");
   }
 }
 
