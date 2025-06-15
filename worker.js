@@ -290,6 +290,31 @@ if (isMaster && text === "/mybots") {
   return new Response("My bots listed");
 }
 
+  if (request.method === "GET" && url.pathname === "/list") {
+  const secret = url.searchParams.get("auth");
+  if (secret !== env.ADMIN_SECRET) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
+  const all = await env.DEPLOYED_BOTS_KV.list();
+  const bots = [];
+
+  for (const key of all.keys) {
+    const value = await env.DEPLOYED_BOTS_KV.get(key.name);
+    const botInfo = await fetch(`https://api.telegram.org/bot${key.name}/getMe`).then(r => r.json());
+    bots.push({
+      token: key.name,
+      creator: value?.replace("creator:", "") || null,
+      username: botInfo.ok ? botInfo.result.username : null
+    });
+  }
+  }
+
+  return new Response(JSON.stringify({ bots }, null, 2), {
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
     // /start
     if (text === "/start") {
   const chatType = message.chat.type;
