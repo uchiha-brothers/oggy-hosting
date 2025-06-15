@@ -349,8 +349,8 @@ if (callback) {
 
   if (data === "help") {
     const helpMsg = isMaster
-      ? `❓ <b>How to use this bot:</b>\n\n• Send any <i>Instagram reel URL</i>\n• Or use <code>/reel &lt;url&gt;</code>\n• The bot will fetch and send you the video\n\n❓ <b>Master Bot Help:</b>\n\n• /newbot — Deploy new bot\n• /deletebot — Disable Bot Or Delete Bot\n• /stats — Global stats\n• /mybots — Your deployed bots\n\n🔧 For support or updates, visit <a href="https://t.me/oggy24help">@Oggy_Workshop</a>`
-      : `❓ <b>How to use this bot:</b>\n\n• Send any <i>Instagram reel URL</i>\n• Or use <code>/reel &lt;url&gt;</code>\n• The bot will fetch and send you the video\n\n🔧 For support or updates, visit <a href="https://t.me/oggy24help">@Oggy_Workshop</a>`;
+      ? `🥹 ❓ <b>How to use this bot:</b>\n\n• Send any <i>Instagram reel URL</i>\n• Or use <code>/reel &lt;url&gt;</code>\n• The bot will fetch and send you the video\n\n❓ <b>Master Bot Help:</b>\n\n• /newbot — Deploy new bot\n• /deletebot — Disable Bot Or Delete Bot\n• /stats — Global stats\n• /mybots — Your deployed bots\n\n🔧 For support or updates, visit <a href="https://t.me/oggy24help">@Oggy_Workshop</a>`
+      : `❤️ ❓ <b>How to use this bot:</b>\n\n• Send any <i>Instagram reel URL</i>\n• Or use <code>/reel &lt;url&gt;</code>\n• The bot will fetch and send you the video\n\n🔧 For support or updates, visit <a href="https://t.me/oggy24help">@Oggy_Workshop</a>`;
     await editMessage(botToken, chatId, msgId, helpMsg, "HTML", backKeyboard);
   }
 
@@ -382,25 +382,14 @@ if (callback) {
       `• ᴏᴡɴᴇʀ ɴᴀᴍᴇ : ${masterName}\n` +
       `• ᴏᴡɴᴇʀ ᴜꜱᴇʀɴᴀᴍᴇ : @${masterUsername}\n` +
       `• ᴅᴍ ʟɪɴᴋ : <a href="https://t.me/${masterUsername}">t.me/${masterUsername}</a>`;
-  } else {
-    // For cloned bots
-    const creatorId = ownerId; // track owner when bot was created
-    const ownerInfo = await fetch(`https://api.telegram.org/bot${MASTER_BOT_TOKEN}/getChat?chat_id=${creatorId}`).then(r => r.json());
-    const ownerName = ownerInfo.ok ? ownerInfo.result.first_name : "Unknown";
-    const ownerUsername = ownerInfo.ok ? ownerInfo.result.username : "unknown";
-
-    // Fetch master bot info
-    const masterInfo = await fetch(`https://api.telegram.org/bot${MASTER_BOT_TOKEN}/getMe`).then(r => r.json());
-    const masterUsername = masterInfo.ok ? masterInfo.result.username : "unknown";
-    const masterName = masterInfo.ok ? masterInfo.result.first_name : "Master Bot";
-
+  } else {  
     creatorMsg =
       `⍟───[ ᴄʟᴏɴᴇᴅ ʙᴏᴛ ᴅᴇᴛᴀɪʟꜱ ]───⍟\n\n` +
       `• ʙᴏᴛ ɴᴀᴍᴇ : <a href="https://t.me/${botUsername}">${botName}</a>\n` +
       `• ʙᴏᴛ ᴜꜱᴇʀɴᴀᴍᴇ : @${botUsername}\n\n` +
-      `• ᴄʟᴏɴᴇᴅ ʙʏ : ${ownerName}\n` +
-      `• ᴜꜱᴇʀɴᴀᴍᴇ : @${ownerUsername}\n` +
-      `• ᴅᴍ ʟɪɴᴋ : <a href="https://t.me/${ownerUsername}">t.me/${ownerUsername}</a>\n\n` +
+      `• ᴄʟᴏɴᴇᴅ ʙʏ : ownerName\n` +
+      `• ᴜꜱᴇʀɴᴀᴍᴇ : @ownerUsername\n` +
+      `• ᴅᴍ ʟɪɴᴋ : <a href="https://t.me/ownerUsername">t.me/ownerUsername</a>\n\n` +
       `• ᴍᴀꜱᴛᴇʀ ʙᴏᴛ : <a href="https://t.me/${masterUsername}">@${masterUsername}</a>\n` +
       `• ᴍᴀꜱᴛᴇʀ ɴᴀᴍᴇ : ${masterName}`;
   }
