@@ -321,9 +321,13 @@ if (isMaster && text === "/mybots") {
     : `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.`;
 
   const inlineKeyboard = [
-    [{ text: "📖 Help", callback_data: "help" }],
-    [{ text: "📊 Stats", callback_data: "stats" }],
-    [{ text: "ℹ️ About", callback_data: "about" }]
+    [
+      { text: "➕ New Bot", callback_data: "newbot" },
+      { text: "📋 My Bots", callback_data: "mybots" }
+    ],
+    [
+      { text: "📖 Help", callback_data: "help" }
+    ]
   ];
 
   await sendMessage(botToken, chatId, startMsg, "HTML", {
@@ -332,6 +336,7 @@ if (isMaster && text === "/mybots") {
 
   return new Response("Start message sent");
 }
+
 
 
 const callback = update.callback_query;
