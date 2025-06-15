@@ -354,7 +354,7 @@ if (callback) {
     await editMessage(botToken, chatId, msgId, helpMsg, "HTML", backKeyboard);
   }
 
-  else if (data === "creator") {
+   else if (data === "creator") {
   const chatId = callback.message.chat.id;
   const msgId = callback.message.message_id;
   const backKeyboard = {
@@ -369,9 +369,10 @@ if (callback) {
     let creatorMsg = "";
 
     if (isMaster) {
-      const masterInfo = await fetch(`https://api.telegram.org/bot${botToken}/getChat?chat_id=${masterId}`).then(r => r.json());
+      // Use env.MASTER_ADMIN_ID to fetch name/username
+      const masterInfo = await fetch(`https://api.telegram.org/bot${botToken}/getChat?chat_id=${MASTER_ADMIN_ID}`).then(r => r.json());
       const masterName = masterInfo.ok ? masterInfo.result.first_name : "Master";
-      const masterUsername = masterInfo.ok ? masterInfo.result.username || "(no username)" : "unknown";
+      const masterUsername = masterInfo.ok ? (masterInfo.result.username || "unknown") : "unknown";
 
       creatorMsg =
         `⍟───[ ᴍᴀꜱᴛᴇʀ ʙᴏᴛ ᴅᴇᴛᴀɪʟꜱ ]───⍟\n\n` +
@@ -381,14 +382,14 @@ if (callback) {
         `• ᴏᴡɴᴇʀ ᴜꜱᴇʀɴᴀᴍᴇ : @${masterUsername}\n` +
         `• ᴅᴍ ʟɪɴᴋ : <a href="https://t.me/${masterUsername}">t.me/${masterUsername}</a>`;
     } else {
-      const creatorId = ownerId; // Replace with actual creator's ID
-      const ownerInfo = await fetch(`https://api.telegram.org/bot${MASTER_BOT_TOKEN}/getChat?chat_id=${creatorId}`).then(r => r.json());
+      // Get info of the creator of this cloned bot (chatId is the user)
+      const ownerInfo = await fetch(`https://api.telegram.org/bot${MASTER_BOT_TOKEN}/getChat?chat_id=${chatId}`).then(r => r.json());
       const ownerName = ownerInfo.ok ? ownerInfo.result.first_name : "Unknown";
-      const ownerUsername = ownerInfo.ok ? ownerInfo.result.username || "(no username)" : "unknown";
+      const ownerUsername = ownerInfo.ok ? (ownerInfo.result.username || "unknown") : "unknown";
 
       const masterInfo = await fetch(`https://api.telegram.org/bot${MASTER_BOT_TOKEN}/getMe`).then(r => r.json());
       const masterUsername = masterInfo.ok ? masterInfo.result.username : "unknown";
-      const masterName = masterInfo.ok ? masterInfo.result.first_name : "Master Bot";
+      const masterName = masterInfo.ok ? masterInfo.result.first_name : "Master";
 
       creatorMsg =
         `⍟───[ ᴄʟᴏɴᴇᴅ ʙᴏᴛ ᴅᴇᴛᴀɪʟꜱ ]───⍟\n\n` +
@@ -408,9 +409,8 @@ if (callback) {
     return new Response("Creator info shown");
 
   } catch (err) {
-    console.error("Error in /creator:", err);
-
-    const errorMessage = (err?.message || String(err)).slice(0, 500); // limit long errors
+    console.error("Error in 'creator' callback:", err);
+    const errorMessage = (err?.message || String(err)).slice(0, 500);
     const fallback = "⚠️ An error occurred while fetching creator details.\n\n";
     const fullErrorMsg = fallback + `<code>${errorMessage}</code>`;
 
@@ -418,7 +418,7 @@ if (callback) {
       reply_to_message_id: msgId,
     });
 
-    return new Response("Error sent to user");
+    return new Response("Error shown to user");
   }
 }
 
