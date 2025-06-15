@@ -325,7 +325,7 @@ if (isMaster && text === "/mybots") {
           ],
           [
             { text: "📊 Stats", callback_data: "stats" },
-            { text: "👤 Creator", url: `https://t.me/${MASTER_BOT_USERNAME}` }
+            { text: "👤 Creator", callback_data: "creator" }
           ]
         ]
       };
@@ -353,6 +353,50 @@ if (callback) {
       : `❓ <b>How to use this bot:</b>\n\n• Send any <i>Instagram reel URL</i>\n• Or use <code>/reel &lt;url&gt;</code>\n• The bot will fetch and send you the video\n\n🔧 For support or updates, visit <a href="https://t.me/oggy24help">@Oggy_Workshop</a>`;
     await editMessage(botToken, chatId, msgId, helpMsg, "HTML", backKeyboard);
   }
+
+  else  if (callback?.data === "creator") {
+  const chatId = callback.message.chat.id;
+  const msgId = callback.message.message_id;
+
+  const backKeyboard = {
+    inline_keyboard: [[{ text: "⬅️ Back to Start", callback_data: "start" }]],
+  };
+
+  let creatorMsg = "";
+
+  if (isMaster) {
+    // Fetch master bot info dynamically
+    const botInfo = await fetch(`https://api.telegram.org/bot${botToken}/getMe`).then(r => r.json());
+    const MasterbotUsername = botInfo.ok ? botInfo.result.username : "(unknown)";
+    const MasterbotName = botInfo.ok ? botInfo.result.first_name : "(unknown)";
+
+    creatorMsg =
+      `⍟───[ ᴏᴡɴᴇʀ ᴅᴇᴛᴀɪʟꜱ ]───⍟\n\n` +
+      `• ʙᴏᴛ ɴᴀᴍᴇ : <a href="https://t.me/${MasterbotUsername}">${MasterbotName}</a>\n` +
+      `• ꜰᴜʟʟ ɴᴀᴍᴇ : ${MASTER_ADMIN_NAME}\n` +
+      `• ᴜꜱᴇʀɴᴀᴍᴇ : @${MASTER_ADMIN_USERNAME}\n` +
+      `• ᴘᴇʀᴍᴀɴᴇɴᴛ ᴅᴍ ʟɪɴᴋ : <a href="https://t.me/${MASTER_ADMIN_USERNAME}">t.me/${MASTER_ADMIN_USERNAME}</a>`;
+  } else {
+    // Cloned bot creator message
+    const botInfo = await fetch(`https://api.telegram.org/bot${botToken}/getMe`).then(r => r.json());
+    const botUsername = botInfo.ok ? botInfo.result.username : "(unknown)";
+    const botName = botInfo.ok ? botInfo.result.first_name : "(unknown)";
+
+    creatorMsg =
+      `⍟───[ ᴏᴡɴᴇʀ ᴅᴇᴛᴀɪʟꜱ ]───⍟\n\n` +
+      `• ʙᴏᴛ ɴᴀᴍᴇ : <a href="https://t.me/${botUsername}">${botName}</a>\n` +
+      `• ꜰᴜʟʟ ɴᴀᴍᴇ : ${CLONED_ADMIN_NAME}\n` +
+      `• ᴜꜱᴇʀɴᴀᴍᴇ : @${CLONED_ADMIN_USERNAME}\n` +
+      `• ᴘᴇʀᴍᴀɴᴇɴᴛ ᴅᴍ ʟɪɴᴋ : <a href="https://t.me/${CLONED_ADMIN_USERNAME}">t.me/${CLONED_ADMIN_USERNAME}</a>\n` +
+      `• ᴍᴀꜱᴛᴇʀ ʙᴏᴛ : <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`;
+  }
+
+  await editMessage(botToken, chatId, msgId, creatorMsg, "HTML", backKeyboard, {
+    disable_web_page_preview: true,
+  });
+
+  return new Response("Creator info shown");
+}
 
   else if (callback?.data === "stats") {
   const chatId = callback.message.chat.id;
@@ -454,26 +498,39 @@ if (callback) {
 
   else if (data === "start") {
     const startMsg = isMaster
-      ? `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🤖 This bot manages other bots.\nUse /newbot to clone and deploy your own Telegram bot.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`
-      : `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`;
-    const inlineKeyboard = {
-      inline_keyboard: [
-        [
-          { text: "⚙️ Help", callback_data: "help" },
-          { text: "ℹ️ About", callback_data: "about" }
-        ],
-        [
-          { text: "📊 Stats", callback_data: "stats" },
-          { text: "🤖 My Bots", callback_data: "mybots" }
+    ? `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🤖 This bot manages other bots.\nUse /newbot to clone and deploy your own Telegram bot.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`
+    : `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`;
+
+  const inlineKeyboard = isMaster
+    ? {
+        inline_keyboard: [
+          [
+            { text: "⚙️ Help", callback_data: "help" },
+            { text: "ℹ️ About", callback_data: "about" }
+          ],
+          [
+            { text: "📊 Stats", callback_data: "stats" },
+            { text: "🤖 My Bots", callback_data: "mybots" }
+          ]
         ]
-      ]
-    };
+      }
+    : {
+        inline_keyboard: [
+          [
+            { text: "⚙️ Help", callback_data: "help" },
+            { text: "ℹ️ About", callback_data: "about" }
+          ],
+          [
+            { text: "📊 Stats", callback_data: "stats" },
+            { text: "👤 Creator", callback_data: "creator" }
+          ]
+        ]
+      };
 
-    await editMessage(botToken, chatId, msgId, startMsg, "HTML", inlineKeyboard, {
-      disable_web_page_preview: true
-    });
-  }
-
+  await sendMessage(botToken, chatId, startMsg, "HTML", inlineKeyboard, {
+    disable_web_page_preview: true
+  });
+}
   return new Response("Callback handled");
 }
 
