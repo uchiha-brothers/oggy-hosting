@@ -5,6 +5,8 @@ const MASTER_ADMIN_ID = "7485643534";
 
 const broadcastState = new Map();
 const newBotState = new Map();
+const deleteBotState = new Map();
+const getWebhookState = new Map();
 
 export default {
   async fetch(request, env, ctx) {
@@ -28,34 +30,52 @@ export default {
     }
 
     // /deletebot (master only)
-    if (isMaster && text.startsWith("/deletebot")) {
-      const tokenToDelete = text.split(" ")[1]?.trim();
-      if (!tokenToDelete) {
-        await sendMessage(botToken, chatId, "❌ Please provide a bot token to delete.");
-        return new Response("No token to delete");
-      }
-      if (tokenToDelete === MASTER_BOT_TOKEN) {
-        await sendMessage(botToken, chatId, "❌ You cannot disable the master bot.");
-        return new Response("Attempt to disable master bot");
-      }
+    if (isMaster && text === "/deletebot") {
+  deleteBotState.set(chatId, true);
+  await sendMessage(botToken, chatId, "🗑️ Please send the bot token you want to disable or press /cancel to stop.");
+  return new Response("Awaiting token to delete");
+}
 
-      const deployed = await env.DEPLOYED_BOTS_KV.get(tokenToDelete);
-      if (!deployed) {
-        await sendMessage(botToken, chatId, "❌ Bot token not found or not deployed.");
-        return new Response("Unknown token");
-      }
+    if (isMaster && text === "/cancel" && deleteBotState.get(chatId)) {
+  deleteBotState.delete(chatId);
+  await sendMessage(botToken, chatId, "❌ Bot deletion cancelled.");
+  return new Response("Cancelled delete flow");
+}
 
-      const deleteRes = await fetch(`https://api.telegram.org/bot${tokenToDelete}/deleteWebhook`, { method: "POST" }).then(r => r.json());
-      if (deleteRes.ok) {
-        await env.DISABLED_BOTS_KV.put(tokenToDelete, "1");
-        await env.DEPLOYED_BOTS_KV.delete(tokenToDelete);
-        await sendMessage(botToken, chatId, `🗑️ Bot with token <code>${tokenToDelete}</code> has been disabled and webhook removed.`, "HTML");
-      } else {
-        await sendMessage(botToken, chatId, `❌ Failed to delete webhook:\n${deleteRes.description}`);
-      }
+if (isMaster && deleteBotState.get(chatId)) {
+  if (text.match(/^\d+:[\w-]{30,}$/)) {
+    deleteBotState.delete(chatId);
+    const tokenToDelete = text.trim();
 
-      return new Response("Bot disabled");
+    if (tokenToDelete === MASTER_BOT_TOKEN) {
+      await sendMessage(botToken, chatId, "❌ You cannot disable the master bot.");
+      return new Response("Attempt to disable master bot");
     }
+
+    const deployed = await env.DEPLOYED_BOTS_KV.get(tokenToDelete);
+    if (!deployed) {
+      await sendMessage(botToken, chatId, "❌ Bot token not found or not deployed.");
+      return new Response("Unknown token");
+    }
+
+    const deleteRes = await fetch(`https://api.telegram.org/bot${tokenToDelete}/deleteWebhook`, {
+      method: "POST"
+    }).then(r => r.json());
+
+    if (deleteRes.ok) {
+      await env.DISABLED_BOTS_KV.put(tokenToDelete, "1");
+      await env.DEPLOYED_BOTS_KV.delete(tokenToDelete);
+      await sendMessage(botToken, chatId, `🗑️ Bot with token <code>${tokenToDelete}</code> has been disabled and webhook removed.`, "HTML");
+    } else {
+      await sendMessage(botToken, chatId, `❌ Failed to delete webhook:\n${deleteRes.description}`);
+    }
+
+    return new Response("Bot disabled");
+  } else {
+    await sendMessage(botToken, chatId, "❌ Invalid bot token. Please send a valid token or /cancel.");
+    return new Response("Invalid token in delete flow");
+  }
+}      
    
 // Broadcast command handler
 if (text === "/broadcast") {
@@ -211,6 +231,20 @@ if (isMaster && newBotState.get(chatId)) {
       const botInfo = await fetch(`https://api.telegram.org/bot${newToken}/getMe`).then(r => r.json());
       const newBotUsername = botInfo.ok ? botInfo.result.username : null;
 
+      await fetch(`https://api.telegram.org/bot${newToken}/setMyCommands`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      commands: [
+        { command: "start", description: "Start the bot" },
+        { command: "broadcast", description: "Send message to all users" },
+        { command: "reel", description: "To download reels" },
+        { command: "stats", description: "Show bot stats" },
+        { command: "help", description: "How to use the bot" }
+      ]
+    })
+  });
+      
       if (cloningMsgId) await deleteMessage(botToken, chatId, cloningMsgId);
       const replyMessage =
         `✅ <b>New bot deployed!</b>\n\n` +
@@ -229,29 +263,51 @@ if (isMaster && newBotState.get(chatId)) {
   }
 }
 
-    // /mybots
-    if (isMaster && text === "/mybots") {
-      const allBots = await env.DEPLOYED_BOTS_KV.list();
-      const myBots = [];
+// /mybots
+if (isMaster && text === "/mybots") {
+  const allBots = await env.DEPLOYED_BOTS_KV.list();
+  const myBots = [];
 
-      for (const entry of allBots.keys) {
-        const val = await env.DEPLOYED_BOTS_KV.get(entry.name);
-        if (val === `creator:${chatId}`) {
-          const botInfo = await fetch(`https://api.telegram.org/bot${entry.name}/getMe`).then(r => r.json());
-          const username = botInfo.ok ? botInfo.result.username : null;
-          myBots.push(`• ${username ? `@${username}` : "(unknown username)"}\n<code>${entry.name}</code>`);
-        }
-      }
-
-      if (myBots.length === 0) {
-        await sendMessage(botToken, chatId, "🤖 You haven't deployed any bots yet.");
-      } else {
-        const msg = `<b>🤖 Your Bots:</b>\n\n` + myBots.join("\n\n");
-        await sendMessage(botToken, chatId, msg, "HTML");
-      }
-
-      return new Response("Mybots listed");
+  for (const entry of allBots.keys) {
+    const val = await env.DEPLOYED_BOTS_KV.get(entry.name);
+    if (val === `creator:${chatId}`) {
+      const botInfo = await fetch(`https://api.telegram.org/bot${entry.name}/getMe`).then(r => r.json());
+      const username = botInfo.ok ? botInfo.result.username : "(unknown)";
+      myBots.push({ token: entry.name, username });
     }
+  }
+
+  if (myBots.length === 0) {
+    await sendMessage(botToken, chatId, "🤖 You haven't created any bots yet.");
+  } else {
+    let msg = `<b>🤖 Your Bots:</b>\n\n`;
+    for (const bot of myBots) {
+      msg += `• @${bot.username}\n<code>${bot.token}</code>\n\n`;
+    }
+    await sendMessage(botToken, chatId, msg.trim(), "HTML");
+  }
+
+  return new Response("My bots listed");
+}
+
+  if (request.method === "GET" && url.pathname === "/list") {
+  const all = await env.DEPLOYED_BOTS_KV.list();
+  const bots = [];
+
+  for (const key of all.keys) {
+    const value = await env.DEPLOYED_BOTS_KV.get(key.name);
+    const botInfo = await fetch(`https://api.telegram.org/bot${key.name}/getMe`).then(r => r.json());
+    bots.push({
+      token: key.name,
+      creator: value?.replace("creator:", "") || null,
+      username: botInfo.ok ? botInfo.result.username : null
+    });
+  }
+
+  return new Response(JSON.stringify({ bots }, null, 2), {
+    headers: { "Content-Type": "application/json" }
+  });
+}
 
     // /start
     if (text === "/start") {
@@ -263,20 +319,24 @@ if (isMaster && newBotState.get(chatId)) {
   if (!already) await env.USERS_KV.put(key, "1");
 
   const startMsg = isMaster
-        ? `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🤖 This bot manages other bots.\nUse /newbot (bot-token) to clone and deploy your own Telegram bot.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`
+        ? `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🤖 This bot manages other bots.\nUse /newbot to clone and deploy your own Telegram bot.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`
         : `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`;
 
-      await sendMessage(botToken, chatId, startMsg, "HTML");
+      await sendMessage(botToken, chatId, startMsg, "HTML", {
+  disable_web_page_preview: true
+});
   return new Response("Started");
 }
 
     // /help
     if (text === "/help") {
       const helpMsg = isMaster
-        ? `❓ <b>How to use this bot:</b>\n\n• Send any <i>Instagram reel URL</i>\n• Or use <code>/reel &lt;url&gt;</code>\n• The bot will fetch and send you the video\n\n❓ <b>Master Bot Help:</b>\n\n• /newbot &lt;token&gt; — Deploy new bot\n• /deletebot &lt;token&gt; — Disable bot\n• /stats — Global stats\n• /mybots — Your deployed bots\n\n🔧 For support or updates, visit <a href="https://t.me/oggy24help">@Oggy_Workshop</a>`
+        ? `❓ <b>How to use this bot:</b>\n\n• Send any <i>Instagram reel URL</i>\n• Or use <code>/reel &lt;url&gt;</code>\n• The bot will fetch and send you the video\n\n❓ <b>Master Bot Help:</b>\n\n• /newbot — Deploy new bot\n• /deletebot — Disable Bot Or Delete Bot\n• /stats — Global stats\n• /mybots — Your deployed bots\n\n🔧 For support or updates, visit <a href="https://t.me/oggy24help">@Oggy_Workshop</a>`
         : `❓ <b>How to use this bot:</b>\n\n• Send any <i>Instagram reel URL</i>\n• Or use <code>/reel &lt;url&gt;</code>\n• The bot will fetch and send you the video\n\n🔧 For support or updates, visit <a href="https://t.me/oggy24help">@Oggy_Workshop</a>`;
 
-      await sendMessage(botToken, chatId, helpMsg, "HTML");
+      await sendMessage(botToken, chatId, helpMsg, "HTML", {
+  disable_web_page_preview: true
+});
       return new Response("Help shown");
     }
 
@@ -302,6 +362,55 @@ const groupCount = listGroups.keys.length;
       await sendMessage(botToken, chatId, statsMsg, "HTML");
       return new Response("Per-bot stats shown");
     }
+
+    // Step 1: Start getwebhook flow
+if (isMaster && text === "/getwebhook") {
+  getWebhookState.set(chatId, true);
+  await sendMessage(botToken, chatId, "🔍 Please send the bot token to fetch webhook info, or send /cancel to stop.");
+  return new Response("Awaiting token for webhook info");
+}
+
+// Cancel getwebhook flow
+if (isMaster && text === "/cancel" && getWebhookState.get(chatId)) {
+  getWebhookState.delete(chatId);
+  await sendMessage(botToken, chatId, "❌ Get webhook info flow cancelled.");
+  return new Response("Cancelled webhook info flow");
+}
+
+// Step 2: Token received while in getwebhook flow
+if (isMaster && getWebhookState.get(chatId)) {
+  if (text.match(/^\d+:[\w-]{30,}$/)) {
+    getWebhookState.delete(chatId);
+    const token = text.trim();
+
+    // Call Telegram getWebhookInfo
+    const infoRes = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`).then(r => r.json());
+
+  if (!infoRes.ok) {
+    await sendMessage(botToken, chatId, `❌ Failed to get webhook info:\n${infoRes.description}`);
+    return new Response("Failed to fetch webhook info");
+  }
+
+  const info = infoRes.result;
+  const noError = !info.last_error_message && !info.last_error_date;
+
+  const msg =
+    `<b>🔗 Webhook Info</b>\n\n` +
+    `• URL: <code>${info.url || "None"}</code>\n` +
+    `• Has Custom Cert: <code>${info.has_custom_certificate}</code>\n` +
+    `• Pending Updates: <code>${info.pending_update_count}</code>\n` +
+    `• IP Address: <code>${info.ip_address || "N/A"}</code>\n` +
+    `• Max Connections: <code>${info.max_connections || "N/A"}</code>\n` +
+    `• Allowed Updates: <code>${(info.allowed_updates || []).join(", ") || "All"}</code>\n\n` +
+    (noError ? `✅ No error found` : `⚠️ Last Error:\n<code>${info.last_error_message || "Not found"}</code>\n⏱️ At: <code>${info.last_error_date ? new Date(info.last_error_date * 1000).toISOString() : "Not found"}</code>`);
+
+  await sendMessage(botToken, chatId, msg, "HTML");
+  return new Response("Webhook info shown");
+} else {
+    await sendMessage(botToken, chatId, "❌ Invalid token. Please send a valid bot token or /cancel.");
+    return new Response("Invalid token in getwebhook flow");
+  }
+}
 
     // /id
     if (text === "/id") {
@@ -383,7 +492,7 @@ async function sendMessage(botToken, chatId, text, parse_mode = "HTML") {
   return await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text, parse_mode })
+    body: JSON.stringify({ chat_id: chatId, text, parse_mode, disable_web_page_preview: true })
   }).then(r => r.json());
 }
 
