@@ -558,7 +558,8 @@ async function editMessage(botToken, chatId, msgId, text, parseMode, replyMarkup
       text,
       parse_mode: parseMode,
       reply_markup: replyMarkup,
-      ...options
+      disable_web_page_preview: true, // ✅ Set default true
+      ...options                     // ✅ Allow overrides via options
     })
   });
 }
