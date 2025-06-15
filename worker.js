@@ -320,20 +320,26 @@ if (isMaster && text === "/mybots") {
 
   const isPrivate = chatType === "private";
   const startMsg = isMaster
-    ? `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🤖 This bot manages other bots.\nUse <b>buttons below</b> to create or view your bots.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`
-    : `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.`;
-
+        ? `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🤖 This bot manages other bots.\nUse /newbot to clone and deploy your own Telegram bot.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`
+        : `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`;
+      
   const inlineKeyboard = {
-    inline_keyboard: [
-      [{ text: "➕ New Bot", callback_data: "stats" }],
-      [{ text: "🤖 My Bots", callback_data: "help" }],
-      [{ text: "📊 Stats", callback_data: "stats" }]
+  inline_keyboard: [
+    [
+      { text: "⚙️ Help", callback_data: "help" },
+      { text: "ℹ️ About", callback_data: "about" }
+    ],
+    [
+      { text: "📊 Stats", callback_data: "stats" },
+      { text: "🤖 My Bots", callback_data: "mybots" }
     ]
-  };
+  ]
+};
 
-  await sendMessage(botToken, chatId, startMsg, "HTML", inlineKeyboard);
-  return new Response("Start message sent");
-}
+  await sendMessage(botToken, chatId, startMsg, "HTML", inlineKeyboard, {
+  disable_web_page_preview: true
+});
+return new Response("Start message sent");
  
 if (callback) {
   const data = callback.data;
@@ -346,7 +352,9 @@ if (callback) {
   };
 
   if (data === "help") {
-    const helpMsg = `📖 <b>Help</b>\n\nJust send an Instagram Reel URL to download it.\n\nCommands:\n/reel - Download a reel\n/broadcast - Send message to all users\n/stats - Show bot stats`;
+    const helpMsg = isMaster
+        ? `❓ <b>How to use this bot:</b>\n\n• Send any <i>Instagram reel URL</i>\n• Or use <code>/reel &lt;url&gt;</code>\n• The bot will fetch and send you the video\n\n❓ <b>Master Bot Help:</b>\n\n• /newbot — Deploy new bot\n• /deletebot — Disable Bot Or Delete Bot\n• /stats — Global stats\n• /mybots — Your deployed bots\n\n🔧 For support or updates, visit <a href="https://t.me/oggy24help">@Oggy_Workshop</a>`
+        : `❓ <b>How to use this bot:</b>\n\n• Send any <i>Instagram reel URL</i>\n• Or use <code>/reel &lt;url&gt;</code>\n• The bot will fetch and send you the video\n\n🔧 For support or updates, visit <a href="https://t.me/oggy24help">@Oggy_Workshop</a>`;
     await editMessage(botToken, chatId, msgId, helpMsg, "HTML", backKeyboard);
   }
 
@@ -360,23 +368,30 @@ if (callback) {
 
   else if (data === "about") {
     const aboutMsg = `ℹ️ <b>About</b>\n\nThis bot was created to help you download Instagram Reels quickly and manage multiple Telegram bots.`;
-    await editMessage(botToken, chatId, msgId, aboutMsg, "HTML", backKeyboard);
-  }
+    await editMessage(botToken, chatId, msgId, aboutMsg, "HTML", backKeyboard, {
+  disable_web_page_preview: true
+});
 
   else if (data === "start") {
     const startMsg = isMaster
-      ? `👋🏻 <b>Welcome Back!</b>\n\nUse the buttons below to manage your bots or download Instagram Reels.`
-      : `👋🏻 <b>Welcome!</b>\n\nSend a Reel URL to download.`;
-
+        ? `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🤖 This bot manages other bots.\nUse /newbot to clone and deploy your own Telegram bot.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`
+        : `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`;
     const inlineKeyboard = {
-      inline_keyboard: [
-        [{ text: "📖 Help", callback_data: "help" }],
-        [{ text: "📊 Stats", callback_data: "stats" }],
-        [{ text: "ℹ️ About", callback_data: "about" }],
-      ],
-    };
+  inline_keyboard: [
+    [
+      { text: "⚙️ Help", callback_data: "help" },
+      { text: "ℹ️ About", callback_data: "about" }
+    ],
+    [
+      { text: "📊 Stats", callback_data: "stats" },
+      { text: "🤖 My Bots", callback_data: "mybots" }
+    ]
+  ]
+};
 
-    await editMessage(botToken, chatId, msgId, startMsg, "HTML", inlineKeyboard);
+    await editMessage(botToken, chatId, msgId, startMsg, "HTML", inlineKeyboard, {
+  disable_web_page_preview: true
+});
   }
 
   return new Response("Callback handled");
