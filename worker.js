@@ -290,35 +290,6 @@ if (isMaster && text === "/mybots") {
   return new Response("My bots listed");
 }
 
-  if (request.method === "GET") {
-  const url = new URL(request.url);
-  const pathname = url.pathname;
-
-  // GET /list — master only, returns all deployed bots
-  if (pathname === "/list") {
-    const token = url.searchParams.get("token");
-    if (token !== MASTER_BOT_TOKEN) {
-      return new Response("❌ Unauthorized", { status: 403 });
-    }
-
-    const all = await env.DEPLOYED_BOTS_KV.list();
-    const bots = [];
-
-    for (const key of all.keys) {
-      const value = await env.DEPLOYED_BOTS_KV.get(key.name);
-      bots.push({ token: key.name, owner: value });
-    }
-
-    return new Response(JSON.stringify({ count: bots.length, bots }, null, 2), {
-      headers: { "Content-Type": "application/json" }
-    });
-  }
-
-  // Optionally add more GET endpoints here...
-
-  return new Response("GET endpoint not found", { status: 404 });
-}
-
     // /start
     if (text === "/start") {
   const chatType = message.chat.type;
