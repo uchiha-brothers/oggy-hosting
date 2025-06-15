@@ -310,7 +310,6 @@ if (isMaster && text === "/mybots") {
 }
 
     if (text === "/start") {
-  coif (text === "/start") {
   const chatType = message.chat.type;
   const keyPrefix = chatType === "private" ? "user" : "chat";
   const key = `${keyPrefix}-${botToken}-${chatId}`;
