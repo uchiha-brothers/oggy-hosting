@@ -313,63 +313,69 @@ if (isMaster && text === "/mybots") {
   const chatType = message.chat.type;
   const keyPrefix = chatType === "private" ? "user" : "chat";
   const key = `${keyPrefix}-${botToken}-${chatId}`;
-
   const already = await env.USERS_KV.get(key);
   if (!already) await env.USERS_KV.put(key, "1");
 
   const startMsg = isMaster
     ? `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🤖 This bot manages other bots.\nUse <b>buttons below</b> to create or view your bots.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`
-    : `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`;
+    : `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.`;
 
-  const replyMarkup = {
-    inline_keyboard: isMaster ? [
-      [
-        { text: "➕ Create New Bot", callback_data: "newbot" },
-        { text: "🤖 My Bots", callback_data: "help" }
-      ],
-      [
-        { text: "📊 Stats", callback_data: "help" },
-        { text: "🗑️ Delete Bot", callback_data: "newbot" }
-      ]
-    ] : [
-      [
-        { text: "👥 Join Channel", url: "https://t.me/YOUR_CHANNEL_USERNAME" }
-      ]
-    ]
-  };
+  const inlineKeyboard = [
+    [{ text: "📖 Help", callback_data: "help" }],
+    [{ text: "📊 Stats", callback_data: "stats" }],
+    [{ text: "ℹ️ About", callback_data: "about" }]
+  ];
 
-  await sendMessage(botToken, chatId, startMsg, "HTML", replyMarkup);
-  return new Response("Start message sent with inline buttons");
+  await sendMessage(botToken, chatId, startMsg, "HTML", {
+    reply_markup: { inline_keyboard: inlineKeyboard }
+  });
+
+  return new Response("Start message sent");
 }
 
-const callbackQuery = update.callback_query;
-if (callbackQuery) {
-  const { data, message, from } = callbackQuery;
-  const chatId = message.chat.id;
-  const userId = from.id;
 
-  switch (data) {
-    case "newbot":
-      newBotState.set(chatId, true);
-      await sendMessage(botToken, chatId, "🧩 Please send me the bot token from @BotFather or press /cancel to stop.");
-      break;
+const callback = update.callback_query;
+if (callback) {
+  const data = callback.data;
+  const fromId = callback.from.id;
+  const msgId = callback.message.message_id;
+  const chatId = callback.message.chat.id;
 
-    case "help":
-      const helpMsg = isMaster
-        ? `❓ <b>How to use this bot:</b>\n\n• Send any <i>Instagram reel URL</i>\n• Or use <code>/reel &lt;url&gt;</code>\n• The bot will fetch and send you the video\n\n❓ <b>Master Bot Help:</b>\n\n• /newbot — Deploy new bot\n• /deletebot — Disable Bot Or Delete Bot\n• /stats — Global stats\n• /mybots — Your deployed bots\n\n🔧 For support or updates, visit <a href="https://t.me/oggy24help">@Oggy_Workshop</a>`
-        : `❓ <b>How to use this bot:</b>\n\n• Send any <i>Instagram reel URL</i>\n• Or use <code>/reel &lt;url&gt;</code>\n• The bot will fetch and send you the video\n\n🔧 For support or updates, visit <a href="https://t.me/oggy24help">@Oggy_Workshop</a>`;
+  const backKeyboard = {
+    inline_keyboard: [[{ text: "⬅️ Back to Start", callback_data: "start" }]]
+  };
 
-      await sendMessage(botToken, chatId, helpMsg, "HTML", {
-  disable_web_page_preview: true
-});
-     break;  
+  if (data === "help") {
+    await editMessage(botToken, chatId, msgId, `📖 <b>Help</b>\n\nJust send an Instagram Reel URL to download it.\n\nCommands:\n/reel - Download a reel\n/broadcast - Send message to all users\n/stats - Show bot stats`, "HTML", backKeyboard);
   }
 
-  await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ callback_query_id: callbackQuery.id }),
-  });
+  if (data === "stats") {
+    const listUsers = await env.USERS_KV.list();
+    const userKeys = listUsers.keys.filter(k => k.name.startsWith(`user-${botToken}-`));
+    const groupKeys = listUsers.keys.filter(k => k.name.startsWith(`chat-${botToken}-`));
+    const msg = `<b>📊 Bot Stats</b>\n\n• Users: <code>${userKeys.length}</code>\n• Groups: <code>${groupKeys.length}</code>`;
+    await editMessage(botToken, chatId, msgId, msg, "HTML", backKeyboard);
+  }
+
+  if (data === "about") {
+    await editMessage(botToken, chatId, msgId, `ℹ️ <b>About</b>\n\nThis bot was created to help you download Instagram Reels quickly and manage multiple Telegram bots.`, "HTML", backKeyboard);
+  }
+
+  if (data === "start") {
+    const startMsg = isMaster
+      ? `👋🏻 <b>Welcome Back!</b>\n\nUse the buttons below to manage your bots or download Instagram Reels.`
+      : `👋🏻 <b>Welcome!</b>\n\nSend a Reel URL to download.`;
+
+    const inlineKeyboard = [
+      [{ text: "📖 Help", callback_data: "help" }],
+      [{ text: "📊 Stats", callback_data: "stats" }],
+      [{ text: "ℹ️ About", callback_data: "about" }]
+    ];
+
+    await editMessage(botToken, chatId, msgId, startMsg, "HTML", {
+      inline_keyboard: inlineKeyboard
+    });
+  }
 
   return new Response("Callback handled");
 }
@@ -520,6 +526,20 @@ async function trackStats(env, botToken, chatId) {
   // Mark user as unique for this bot
   const userKey = `stats:${botToken}:users:${chatId}`;
   await env.STATS_KV.put(userKey, "1");
+}
+
+async function editMessage(token, chatId, messageId, text, parseMode = "HTML", replyMarkup = undefined) {
+  return await fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chatId,
+      message_id: messageId,
+      text,
+      parse_mode: parseMode,
+      reply_markup: replyMarkup
+    })
+  });
 }
 
 async function sendPhoto(token, chatId, fileId, caption = "") {
