@@ -15,8 +15,10 @@ export default {
 
     const update = await request.json();
     const message = update.message || update.edited_message;
-    const text = message?.text || "";
-    const chatId = message?.chat?.id;
+const callback = update.callback_query;
+const text = message?.text || callback?.data || "";
+const chatId = message?.chat?.id || callback?.message?.chat?.id;
+
 
     if (!chatId || !text) return new Response("No message");
 
@@ -334,6 +336,7 @@ if (isMaster && text === "/mybots") {
 }
 
 const callback = update.callback_query;
+
 if (callback) {
   const data = callback.data;
   const fromId = callback.from.id;
@@ -341,43 +344,46 @@ if (callback) {
   const chatId = callback.message.chat.id;
 
   const backKeyboard = {
-    inline_keyboard: [[{ text: "⬅️ Back to Start", callback_data: "start" }]]
+    inline_keyboard: [[{ text: "⬅️ Back to Start", callback_data: "start" }]],
   };
 
   if (data === "help") {
-    await editMessage(botToken, chatId, msgId, `📖 <b>Help</b>\n\nJust send an Instagram Reel URL to download it.\n\nCommands:\n/reel - Download a reel\n/broadcast - Send message to all users\n/stats - Show bot stats`, "HTML", backKeyboard);
+    const helpMsg = `📖 <b>Help</b>\n\nJust send an Instagram Reel URL to download it.\n\nCommands:\n/reel - Download a reel\n/broadcast - Send message to all users\n/stats - Show bot stats`;
+    await editMessage(botToken, chatId, msgId, helpMsg, "HTML", backKeyboard);
   }
 
-  if (data === "stats") {
+  else if (data === "stats") {
     const listUsers = await env.USERS_KV.list();
     const userKeys = listUsers.keys.filter(k => k.name.startsWith(`user-${botToken}-`));
     const groupKeys = listUsers.keys.filter(k => k.name.startsWith(`chat-${botToken}-`));
-    const msg = `<b>📊 Bot Stats</b>\n\n• Users: <code>${userKeys.length}</code>\n• Groups: <code>${groupKeys.length}</code>`;
-    await editMessage(botToken, chatId, msgId, msg, "HTML", backKeyboard);
+    const statsMsg = `<b>📊 Bot Stats</b>\n\n• Users: <code>${userKeys.length}</code>\n• Groups: <code>${groupKeys.length}</code>`;
+    await editMessage(botToken, chatId, msgId, statsMsg, "HTML", backKeyboard);
   }
 
-  if (data === "about") {
-    await editMessage(botToken, chatId, msgId, `ℹ️ <b>About</b>\n\nThis bot was created to help you download Instagram Reels quickly and manage multiple Telegram bots.`, "HTML", backKeyboard);
+  else if (data === "about") {
+    const aboutMsg = `ℹ️ <b>About</b>\n\nThis bot was created to help you download Instagram Reels quickly and manage multiple Telegram bots.`;
+    await editMessage(botToken, chatId, msgId, aboutMsg, "HTML", backKeyboard);
   }
 
-  if (data === "start") {
+  else if (data === "start") {
     const startMsg = isMaster
       ? `👋🏻 <b>Welcome Back!</b>\n\nUse the buttons below to manage your bots or download Instagram Reels.`
       : `👋🏻 <b>Welcome!</b>\n\nSend a Reel URL to download.`;
 
-    const inlineKeyboard = [
-      [{ text: "📖 Help", callback_data: "help" }],
-      [{ text: "📊 Stats", callback_data: "stats" }],
-      [{ text: "ℹ️ About", callback_data: "about" }]
-    ];
+    const inlineKeyboard = {
+      inline_keyboard: [
+        [{ text: "📖 Help", callback_data: "help" }],
+        [{ text: "📊 Stats", callback_data: "stats" }],
+        [{ text: "ℹ️ About", callback_data: "about" }],
+      ],
+    };
 
-    await editMessage(botToken, chatId, msgId, startMsg, "HTML", {
-      inline_keyboard: inlineKeyboard
-    });
+    await editMessage(botToken, chatId, msgId, startMsg, "HTML", inlineKeyboard);
   }
 
   return new Response("Callback handled");
 }
+
 
     // /help
     if (text === "/help") {
