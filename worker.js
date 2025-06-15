@@ -292,25 +292,6 @@ if (isMaster && text === "/mybots") {
   return new Response("My bots listed");
 }
 
-  if (request.method === "GET" && url.pathname === "/list") {
-  const all = await env.DEPLOYED_BOTS_KV.list();
-  const bots = [];
-
-  for (const key of all.keys) {
-    const value = await env.DEPLOYED_BOTS_KV.get(key.name);
-    const botInfo = await fetch(`https://api.telegram.org/bot${key.name}/getMe`).then(r => r.json());
-    bots.push({
-      token: key.name,
-      creator: value?.replace("creator:", "") || null,
-      username: botInfo.ok ? botInfo.result.username : null
-    });
-  }
-
-  return new Response(JSON.stringify({ bots }, null, 2), {
-    headers: { "Content-Type": "application/json" }
-  });
-}
-
     if (text === "/start") {
   const chatType = message.chat.type;
   const keyPrefix = chatType === "private" ? "user" : "chat";
@@ -323,24 +304,37 @@ if (isMaster && text === "/mybots") {
     ? `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🤖 This bot manages other bots.\nUse /newbot to clone and deploy your own Telegram bot.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`
     : `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`;
 
-  const inlineKeyboard = {
-    inline_keyboard: [
-      [
-        { text: "⚙️ Help", callback_data: "help" },
-        { text: "ℹ️ About", callback_data: "about" }
-      ],
-      [
-        { text: "📊 Stats", callback_data: "stats" },
-        { text: "🤖 My Bots", callback_data: "mybots" }
-      ]
-    ]
-  };
+  const inlineKeyboard = isMaster
+    ? {
+        inline_keyboard: [
+          [
+            { text: "⚙️ Help", callback_data: "help" },
+            { text: "ℹ️ About", callback_data: "about" }
+          ],
+          [
+            { text: "📊 Stats", callback_data: "stats" },
+            { text: "🤖 My Bots", callback_data: "mybots" }
+          ]
+        ]
+      }
+    : {
+        inline_keyboard: [
+          [
+            { text: "⚙️ Help", callback_data: "help" },
+            { text: "ℹ️ About", callback_data: "about" }
+          ],
+          [
+            { text: "📊 Stats", callback_data: "stats" },
+            { text: "👤 Creator", url: `https://t.me/${MASTER_BOT_USERNAME}` }
+          ]
+        ]
+      };
 
   await sendMessage(botToken, chatId, startMsg, "HTML", inlineKeyboard, {
     disable_web_page_preview: true
   });
-  // ✅ Return moved to end of block
 }
+
 
 // ✅ Now this code runs if callback exists
 if (callback) {
@@ -367,6 +361,44 @@ if (callback) {
     const statsMsg = `<b>📊 Bot Stats</b>\n\n• Users: <code>${userKeys.length}</code>\n• Groups: <code>${groupKeys.length}</code>`;
     await editMessage(botToken, chatId, msgId, statsMsg, "HTML", backKeyboard);
   }
+
+  else if (isMaster && callback?.data === "mybots") {
+  const fromId = callback.from.id;
+  const msgId = callback.message.message_id;
+  const chatId = callback.message.chat.id;
+
+  const allBots = await env.DEPLOYED_BOTS_KV.list();
+  const myBots = [];
+
+  for (const entry of allBots.keys) {
+    const val = await env.DEPLOYED_BOTS_KV.get(entry.name);
+    if (val === `creator:${chatId}`) {
+      const botInfo = await fetch(`https://api.telegram.org/bot${entry.name}/getMe`).then(r => r.json());
+      const username = botInfo.ok ? botInfo.result.username : "(unknown)";
+      myBots.push({ token: entry.name, username });
+    }
+  }
+
+  const backKeyboard = {
+    inline_keyboard: [[{ text: "⬅️ Back", callback_data: "start" }]],
+  };
+
+  if (myBots.length === 0) {
+    await editMessage(botToken, chatId, msgId, "🤖 You haven't created any bots yet.", "HTML", backKeyboard);
+  } else {
+    let msg = `<b>🤖 Your Bots:</b>\n\n`;
+    for (const bot of myBots) {
+      msg += `• @${bot.username}\n<code>${bot.token}</code>\n\n`;
+    }
+
+    await editMessage(botToken, chatId, msgId, msg.trim(), "HTML", backKeyboard, {
+      disable_web_page_preview: true
+    });
+  }
+
+  return new Response("My bots listed via callback");
+}
+ 
 
   else if (data === "about") {
     const aboutMsg = `ℹ️ <b>About</b>\n\nThis bot was created to help you download Instagram Reels quickly and manage multiple Telegram bots.`;
