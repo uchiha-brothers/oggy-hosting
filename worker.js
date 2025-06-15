@@ -291,11 +291,6 @@ if (isMaster && text === "/mybots") {
 }
 
   if (request.method === "GET" && url.pathname === "/list") {
-  const secret = url.searchParams.get("auth");
-  if (secret !== env.ADMIN_SECRET) {
-    return new Response("Unauthorized", { status: 401 });
-  }
-
   const all = await env.DEPLOYED_BOTS_KV.list();
   const bots = [];
 
