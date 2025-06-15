@@ -14,11 +14,9 @@ export default {
     if (request.method !== "POST") return new Response("Only POST allowed");
 
     const update = await request.json();
-    const callback = update.callback_query;
-    const message = update.message || update.edited_message || callback?.message;
-    const text = message?.text || callback?.data || "";
+    const message = update.message || update.edited_message;
+    const text = message?.text || "";
     const chatId = message?.chat?.id;
-
 
     if (!chatId || !text) return new Response("No message");
 
@@ -292,7 +290,25 @@ if (isMaster && text === "/mybots") {
   return new Response("My bots listed");
 }
 
-    // /start
+  if (request.method === "GET" && url.pathname === "/list") {
+  const all = await env.DEPLOYED_BOTS_KV.list();
+  const bots = [];
+
+  for (const key of all.keys) {
+    const value = await env.DEPLOYED_BOTS_KV.get(key.name);
+    const botInfo = await fetch(`https://api.telegram.org/bot${key.name}/getMe`).then(r => r.json());
+    bots.push({
+      token: key.name,
+      creator: value?.replace("creator:", "") || null,
+      username: botInfo.ok ? botInfo.result.username : null
+    });
+  }
+
+  return new Response(JSON.stringify({ bots }, null, 2), {
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
     if (text === "/start") {
   const chatType = message.chat.type;
   const keyPrefix = chatType === "private" ? "user" : "chat";
@@ -302,82 +318,60 @@ if (isMaster && text === "/mybots") {
   if (!already) await env.USERS_KV.put(key, "1");
 
   const startMsg = isMaster
-        ? `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🤖 This bot manages other bots.\nUse /newbot to clone and deploy your own Telegram bot.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`
-        : `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`;
+    ? `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🤖 This bot manages other bots.\nUse <b>buttons below</b> to create or view your bots.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`
+    : `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`;
 
-      await sendMessage(botToken, chatId, startMsg, "HTML", {
-  disable_web_page_preview: true,
-  reply_markup: JSON.stringify({
-    inline_keyboard: isMaster
-      ? [
-          [
-            { text: "➕ Create New Bot", callback_data: "newbot" },
-            { text: "📊 Bot Stats", callback_data: "stats" }
-          ],
-          [
-            { text: "ℹ️ Help", callback_data: "help" }
-          ]
-        ]
-      : [
-          [
-            { text: "📥 How to Use", callback_data: "help" }
-          ]
-        ]
-  })
-});
-  // Handle inline button presses
-if (callback?.data === "help") {
-  await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      callback_query_id: callback.id
-    })
-  });
+  const replyMarkup = {
+    inline_keyboard: isMaster ? [
+      [
+        { text: "➕ Create New Bot", callback_data: "newbot" },
+        { text: "🤖 My Bots", callback_data: "help" }
+      ],
+      [
+        { text: "📊 Stats", callback_data: "help" },
+        { text: "🗑️ Delete Bot", callback_data: "newbot" }
+      ]
+    ] : [
+      [
+        { text: "👥 Join Channel", url: "https://t.me/YOUR_CHANNEL_USERNAME" }
+      ]
+    ]
+  };
 
-  const helpText = isMaster
+  await sendMessage(botToken, chatId, startMsg, "HTML", replyMarkup);
+  return new Response("Start message sent with inline buttons");
+}
+
+const callbackQuery = update.callback_query;
+if (callbackQuery) {
+  const { data, message, from } = callbackQuery;
+  const chatId = message.chat.id;
+  const userId = from.id;
+
+  switch (data) {
+    case "newbot":
+      newBotState.set(chatId, true);
+      await sendMessage(botToken, chatId, "🧩 Please send me the bot token from @BotFather or press /cancel to stop.");
+      break;
+
+    case "help":
+      const helpMsg = isMaster
         ? `❓ <b>How to use this bot:</b>\n\n• Send any <i>Instagram reel URL</i>\n• Or use <code>/reel &lt;url&gt;</code>\n• The bot will fetch and send you the video\n\n❓ <b>Master Bot Help:</b>\n\n• /newbot — Deploy new bot\n• /deletebot — Disable Bot Or Delete Bot\n• /stats — Global stats\n• /mybots — Your deployed bots\n\n🔧 For support or updates, visit <a href="https://t.me/oggy24help">@Oggy_Workshop</a>`
         : `❓ <b>How to use this bot:</b>\n\n• Send any <i>Instagram reel URL</i>\n• Or use <code>/reel &lt;url&gt;</code>\n• The bot will fetch and send you the video\n\n🔧 For support or updates, visit <a href="https://t.me/oggy24help">@Oggy_Workshop</a>`;
 
-  await sendMessage(botToken, chatId, helpText, "HTML", {
-    reply_markup: JSON.stringify({
-      inline_keyboard: [
-        [{ text: "🔙 Back", callback_data: "start" }]
-      ]
-    })
+      await sendMessage(botToken, chatId, helpMsg, "HTML", {
+  disable_web_page_preview: true
+});
+     break;  
+  }
+
+  await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ callback_query_id: callbackQuery.id }),
   });
 
-  return new Response("Help shown");
-}
-
-if (callback?.data === "start") {
-  const startMsg = isMaster
-    ? `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🤖 This bot manages other bots.\nUse /newbot to clone and deploy your own Telegram bot.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`
-    : `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`;
-
-  await sendMessage(botToken, chatId, startMsg, "HTML", {
-    disable_web_page_preview: true,
-    reply_markup: JSON.stringify({
-      inline_keyboard: isMaster
-        ? [
-            [
-              { text: "➕ Create New Bot", callback_data: "newbot" },
-              { text: "📊 Bot Stats", callback_data: "stats" }
-            ],
-            [
-              { text: "ℹ️ Help", callback_data: "help" }
-            ]
-          ]
-        : [
-            [{ text: "📥 Download Reel", callback_data: "reel" }]
-          ]
-    })
-  });
-
-  return new Response("Start shown via back");
-}
-    
-  return new Response("Started");
+  return new Response("Callback handled");
 }
 
     // /help
@@ -540,12 +534,21 @@ async function sendPhoto(token, chatId, fileId, caption = "") {
   }).then(res => res.json());
 }
 
-async function sendMessage(botToken, chatId, text, parse_mode = "HTML") {
+async function sendMessage(botToken, chatId, text, parseMode = "HTML", replyMarkup = null) {
+  const payload = {
+    chat_id: chatId,
+    text,
+    parse_mode: parseMode,
+  };
+  if (replyMarkup) {
+    payload.reply_markup = replyMarkup;
+  }
+
   return await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text, parse_mode, disable_web_page_preview: true })
-  }).then(r => r.json());
+    body: JSON.stringify(payload),
+  }).then(res => res.json());
 }
 
 async function sendVideo(botToken, chatId, videoUrl) {
