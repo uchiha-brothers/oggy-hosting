@@ -355,6 +355,8 @@ if (callback) {
   }
 
   else if (data === "creator") {
+  const chatId = callback.message.chat.id;
+  const msgId = callback.message.message_id;
   const backKeyboard = {
     inline_keyboard: [[{ text: "⬅️ Back to Start", callback_data: "start" }]],
   };
@@ -416,7 +418,7 @@ if (callback) {
 
   let statsMsg = "";
   const backKeyboard = {
-    inline_keyboard: [[{ text: "⬅️ Back", callback_data: "start" }]],
+    inline_keyboard: [[{ text: "⬅️ Back", callback_data: "creator" }]],
   };
 
   if (isMaster) {
