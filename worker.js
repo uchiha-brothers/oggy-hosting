@@ -546,16 +546,17 @@ async function trackStats(env, botToken, chatId) {
   await env.STATS_KV.put(userKey, "1");
 }
 
-async function editMessage(token, chatId, messageId, text, parseMode = "HTML", replyMarkup = undefined) {
-  return await fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
+async function editMessage(botToken, chatId, msgId, text, parseMode, replyMarkup, options = {}) {
+  return await fetch(`https://api.telegram.org/bot${botToken}/editMessageText`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       chat_id: chatId,
-      message_id: messageId,
+      message_id: msgId,
       text,
       parse_mode: parseMode,
-      reply_markup: replyMarkup
+      reply_markup: replyMarkup,
+      ...options
     })
   });
 }
