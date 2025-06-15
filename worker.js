@@ -354,38 +354,53 @@ if (callback) {
     await editMessage(botToken, chatId, msgId, helpMsg, "HTML", backKeyboard);
   }
 
-  else if (callback?.data === "creator") {
+  else if (data === "creator") {
   const backKeyboard = {
     inline_keyboard: [[{ text: "⬅️ Back to Start", callback_data: "start" }]],
   };
 
+  // Get current bot's info
+  const botInfo = await fetch(`https://api.telegram.org/bot${botToken}/getMe`).then(r => r.json());
+  const botUsername = botInfo.ok ? botInfo.result.username : "(unknown)";
+  const botName = botInfo.ok ? botInfo.result.first_name : "(unknown)";
+  const botId = botInfo.ok ? botInfo.result.id : null;
+
   let creatorMsg = "";
 
   if (isMaster) {
-    // Fetch master bot info dynamically
-    const botInfo = await fetch(`https://api.telegram.org/bot${botToken}/getMe`).then(r => r.json());
-    const MasterbotUsername = botInfo.ok ? botInfo.result.username : "(unknown)";
-    const MasterbotName = botInfo.ok ? botInfo.result.first_name : "(unknown)";
+    // For master bot, assume master is you (static or set via ENV)
+    const masterInfo = await fetch(`https://api.telegram.org/bot${botToken}/getChat?chat_id=${masterId}`).then(r => r.json());
+    const masterName = masterInfo.ok ? masterInfo.result.first_name : "Unknown";
+    const masterUsername = masterInfo.ok ? masterInfo.result.username : "unknown";
 
     creatorMsg =
-      `⍟───[ ᴏᴡɴᴇʀ ᴅᴇᴛᴀɪʟꜱ ]───⍟\n\n` +
-      `• ʙᴏᴛ ɴᴀᴍᴇ : <a href="https://t.me/${MasterbotUsername}">${MasterbotName}</a>\n` +
-      `• ꜰᴜʟʟ ɴᴀᴍᴇ : ${MASTER_ADMIN_NAME}\n` +
-      `• ᴜꜱᴇʀɴᴀᴍᴇ : @${MASTER_ADMIN_USERNAME}\n` +
-      `• ᴘᴇʀᴍᴀɴᴇɴᴛ ᴅᴍ ʟɪɴᴋ : <a href="https://t.me/${MASTER_ADMIN_USERNAME}">t.me/${MASTER_ADMIN_USERNAME}</a>`;
-  } else {
-    // Cloned bot creator message
-    const botInfo = await fetch(`https://api.telegram.org/bot${botToken}/getMe`).then(r => r.json());
-    const botUsername = botInfo.ok ? botInfo.result.username : "(unknown)";
-    const botName = botInfo.ok ? botInfo.result.first_name : "(unknown)";
-
-    creatorMsg =
-      `⍟───[ ᴏᴡɴᴇʀ ᴅᴇᴛᴀɪʟꜱ ]───⍟\n\n` +
+      `⍟───[ ᴍᴀꜱᴛᴇʀ ʙᴏᴛ ᴅᴇᴛᴀɪʟꜱ ]───⍟\n\n` +
       `• ʙᴏᴛ ɴᴀᴍᴇ : <a href="https://t.me/${botUsername}">${botName}</a>\n` +
-      `• ꜰᴜʟʟ ɴᴀᴍᴇ : ${CLONED_ADMIN_NAME}\n` +
-      `• ᴜꜱᴇʀɴᴀᴍᴇ : @${CLONED_ADMIN_USERNAME}\n` +
-      `• ᴘᴇʀᴍᴀɴᴇɴᴛ ᴅᴍ ʟɪɴᴋ : <a href="https://t.me/${CLONED_ADMIN_USERNAME}">t.me/${CLONED_ADMIN_USERNAME}</a>\n` +
-      `• ᴍᴀꜱᴛᴇʀ ʙᴏᴛ : <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`;
+      `• ʙᴏᴛ ᴜꜱᴇʀɴᴀᴍᴇ : @${botUsername}\n\n` +
+      `• ᴏᴡɴᴇʀ ɴᴀᴍᴇ : ${masterName}\n` +
+      `• ᴏᴡɴᴇʀ ᴜꜱᴇʀɴᴀᴍᴇ : @${masterUsername}\n` +
+      `• ᴅᴍ ʟɪɴᴋ : <a href="https://t.me/${masterUsername}">t.me/${masterUsername}</a>`;
+  } else {
+    // For cloned bots
+    const creatorId = ownerId; // track owner when bot was created
+    const ownerInfo = await fetch(`https://api.telegram.org/bot${MASTER_BOT_TOKEN}/getChat?chat_id=${creatorId}`).then(r => r.json());
+    const ownerName = ownerInfo.ok ? ownerInfo.result.first_name : "Unknown";
+    const ownerUsername = ownerInfo.ok ? ownerInfo.result.username : "unknown";
+
+    // Fetch master bot info
+    const masterInfo = await fetch(`https://api.telegram.org/bot${MASTER_BOT_TOKEN}/getMe`).then(r => r.json());
+    const masterUsername = masterInfo.ok ? masterInfo.result.username : "unknown";
+    const masterName = masterInfo.ok ? masterInfo.result.first_name : "Master Bot";
+
+    creatorMsg =
+      `⍟───[ ᴄʟᴏɴᴇᴅ ʙᴏᴛ ᴅᴇᴛᴀɪʟꜱ ]───⍟\n\n` +
+      `• ʙᴏᴛ ɴᴀᴍᴇ : <a href="https://t.me/${botUsername}">${botName}</a>\n` +
+      `• ʙᴏᴛ ᴜꜱᴇʀɴᴀᴍᴇ : @${botUsername}\n\n` +
+      `• ᴄʟᴏɴᴇᴅ ʙʏ : ${ownerName}\n` +
+      `• ᴜꜱᴇʀɴᴀᴍᴇ : @${ownerUsername}\n` +
+      `• ᴅᴍ ʟɪɴᴋ : <a href="https://t.me/${ownerUsername}">t.me/${ownerUsername}</a>\n\n` +
+      `• ᴍᴀꜱᴛᴇʀ ʙᴏᴛ : <a href="https://t.me/${masterUsername}">@${masterUsername}</a>\n` +
+      `• ᴍᴀꜱᴛᴇʀ ɴᴀᴍᴇ : ${masterName}`;
   }
 
   await editMessage(botToken, chatId, msgId, creatorMsg, "HTML", backKeyboard, {
