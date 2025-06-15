@@ -354,10 +354,7 @@ if (callback) {
     await editMessage(botToken, chatId, msgId, helpMsg, "HTML", backKeyboard);
   }
 
-  else  if (callback?.data === "creator") {
-  const chatId = callback.message.chat.id;
-  const msgId = callback.message.message_id;
-
+  else if (callback?.data === "creator") {
   const backKeyboard = {
     inline_keyboard: [[{ text: "⬅️ Back to Start", callback_data: "start" }]],
   };
@@ -527,10 +524,10 @@ if (callback) {
         ]
       };
 
-  await sendMessage(botToken, chatId, startMsg, "HTML", inlineKeyboard, {
-    disable_web_page_preview: true
-  });
-}
+  await editMessage(botToken, chatId, msgId, startMsg, "HTML", inlineKeyboard, {
+      disable_web_page_preview: true
+    });
+  }
   return new Response("Callback handled");
 }
 
