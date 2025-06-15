@@ -361,26 +361,47 @@ if (callback) {
     inline_keyboard: [[{ text: "⬅️ Back to Start", callback_data: "start" }]],
   };
 
+  const botInfo = await fetch(`https://api.telegram.org/bot${botToken}/getMe`).then(r => r.json());
+  const botUsername = botInfo.ok ? botInfo.result.username : "(unknown)";
+  const botName = botInfo.ok ? botInfo.result.first_name : "(unknown)";
+
   let creatorMsg = "";
 
   if (isMaster) {
+    // Fetch master owner info dynamically
+    const masterInfo = await fetch(`https://api.telegram.org/bot${botToken}/getChat?chat_id=${masterId}`).then(r => r.json());
+    const masterName = masterInfo.ok ? masterInfo.result.first_name : "Master";
+    const masterUsername = masterInfo.ok ? masterInfo.result.username || "(no username)" : "unknown";
+
     creatorMsg =
       `⍟───[ ᴍᴀꜱᴛᴇʀ ʙᴏᴛ ᴅᴇᴛᴀɪʟꜱ ]───⍟\n\n` +
-      `• ʙᴏᴛ ɴᴀᴍᴇ : <a href="https://t.me/botUsername">botName</a>\n` +
-      `• ʙᴏᴛ ᴜꜱᴇʀɴᴀᴍᴇ : @botUsername\n\n` +
-      `• ᴏᴡɴᴇʀ ɴᴀᴍᴇ : masterName\n` +
-      `• ᴏᴡɴᴇʀ ᴜꜱᴇʀɴᴀᴍᴇ : @masterUsername\n` +
-      `• ᴅᴍ ʟɪɴᴋ : <a href="https://t.me/masterUsername">t.me/masterUsername</a>`;
-  } else {  
+      `• ʙᴏᴛ ɴᴀᴍᴇ : <a href="https://t.me/${botUsername}">${botName}</a>\n` +
+      `• ʙᴏᴛ ᴜꜱᴇʀɴᴀᴍᴇ : @${botUsername}\n\n` +
+      `• ᴏᴡɴᴇʀ ɴᴀᴍᴇ : ${masterName}\n` +
+      `• ᴏᴡɴᴇʀ ᴜꜱᴇʀɴᴀᴍᴇ : @${masterUsername}\n` +
+      `• ᴅᴍ ʟɪɴᴋ : <a href="https://t.me/${masterUsername}">t.me/${masterUsername}</a>`;
+  } else {
+    // For cloned bots
+    // Assume `creatorId` was stored when bot was deployed
+    const creatorId = ownerId; // ← replace with however you're storing it
+    const ownerInfo = await fetch(`https://api.telegram.org/bot${MASTER_BOT_TOKEN}/getChat?chat_id=${creatorId}`).then(r => r.json());
+    const ownerName = ownerInfo.ok ? ownerInfo.result.first_name : "Unknown";
+    const ownerUsername = ownerInfo.ok ? ownerInfo.result.username || "(no username)" : "unknown";
+
+    // Fetch master bot info
+    const masterInfo = await fetch(`https://api.telegram.org/bot${MASTER_BOT_TOKEN}/getMe`).then(r => r.json());
+    const masterUsername = masterInfo.ok ? masterInfo.result.username : "unknown";
+    const masterName = masterInfo.ok ? masterInfo.result.first_name : "Master Bot";
+
     creatorMsg =
       `⍟───[ ᴄʟᴏɴᴇᴅ ʙᴏᴛ ᴅᴇᴛᴀɪʟꜱ ]───⍟\n\n` +
-      `• ʙᴏᴛ ɴᴀᴍᴇ : <a href="https://t.me/botUsername">botName</a>\n` +
-      `• ʙᴏᴛ ᴜꜱᴇʀɴᴀᴍᴇ : @botUsername\n\n` +
-      `• ᴄʟᴏɴᴇᴅ ʙʏ : ownerName\n` +
-      `• ᴜꜱᴇʀɴᴀᴍᴇ : @ownerUsername\n` +
-      `• ᴅᴍ ʟɪɴᴋ : <a href="https://t.me/ownerUsername">t.me/ownerUsername</a>\n\n` +
-      `• ᴍᴀꜱᴛᴇʀ ʙᴏᴛ : <a href="https://t.me/masterUsername">@masterUsername</a>\n` +
-      `• ᴍᴀꜱᴛᴇʀ ɴᴀᴍᴇ : masterName`;
+      `• ʙᴏᴛ ɴᴀᴍᴇ : <a href="https://t.me/${botUsername}">${botName}</a>\n` +
+      `• ʙᴏᴛ ᴜꜱᴇʀɴᴀᴍᴇ : @${botUsername}\n\n` +
+      `• ᴄʟᴏɴᴇᴅ ʙʏ : ${ownerName}\n` +
+      `• ᴜꜱᴇʀɴᴀᴍᴇ : @${ownerUsername}\n` +
+      `• ᴅᴍ ʟɪɴᴋ : <a href="https://t.me/${ownerUsername}">t.me/${ownerUsername}</a>\n\n` +
+      `• ᴍᴀꜱᴛᴇʀ ʙᴏᴛ : <a href="https://t.me/${masterUsername}">@${masterUsername}</a>\n` +
+      `• ᴍᴀꜱᴛᴇʀ ɴᴀᴍᴇ : ${masterName}`;
   }
 
   await editMessage(botToken, chatId, msgId, creatorMsg, "HTML", backKeyboard, {
