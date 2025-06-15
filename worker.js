@@ -308,7 +308,6 @@ if (isMaster && text === "/mybots") {
       username: botInfo.ok ? botInfo.result.username : null
     });
   }
-  }
 
   return new Response(JSON.stringify({ bots }, null, 2), {
     headers: { "Content-Type": "application/json" }
