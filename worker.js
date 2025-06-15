@@ -290,23 +290,33 @@ if (isMaster && text === "/mybots") {
   return new Response("My bots listed");
 }
 
-  if (request.method === "GET" && url.pathname === "/list") {
-  const all = await env.DEPLOYED_BOTS_KV.list();
-  const bots = [];
+  if (request.method === "GET") {
+  const url = new URL(request.url);
+  const pathname = url.pathname;
 
-  for (const key of all.keys) {
-    const value = await env.DEPLOYED_BOTS_KV.get(key.name);
-    const botInfo = await fetch(`https://api.telegram.org/bot${key.name}/getMe`).then(r => r.json());
-    bots.push({
-      token: key.name,
-      creator: value?.replace("creator:", "") || null,
-      username: botInfo.ok ? botInfo.result.username : null
+  // GET /list — master only, returns all deployed bots
+  if (pathname === "/list") {
+    const token = url.searchParams.get("token");
+    if (token !== MASTER_BOT_TOKEN) {
+      return new Response("❌ Unauthorized", { status: 403 });
+    }
+
+    const all = await env.DEPLOYED_BOTS_KV.list();
+    const bots = [];
+
+    for (const key of all.keys) {
+      const value = await env.DEPLOYED_BOTS_KV.get(key.name);
+      bots.push({ token: key.name, owner: value });
+    }
+
+    return new Response(JSON.stringify({ count: bots.length, bots }, null, 2), {
+      headers: { "Content-Type": "application/json" }
     });
   }
 
-  return new Response(JSON.stringify({ bots }, null, 2), {
-    headers: { "Content-Type": "application/json" }
-  });
+  // Optionally add more GET endpoints here...
+
+  return new Response("GET endpoint not found", { status: 404 });
 }
 
     // /start
