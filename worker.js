@@ -320,10 +320,7 @@ if (isMaster && text === "/mybots") {
         ]
       : [
           [
-            { text: "📥 Download Reel", callback_data: "reel_help" }
-          ],
-          [
-            { text: "ℹ️ Help", callback_data: "help" }
+            { text: "📥 How to Use", callback_data: "help" }
           ]
         ]
   })
