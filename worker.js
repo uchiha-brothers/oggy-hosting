@@ -362,25 +362,33 @@ if (isMaster && getWebhookState.get(chatId)) {
     const token = text.trim();
 
     // Call Telegram getWebhookInfo
-    const webhookInfo = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`).then(r => r.json());
+    const infoRes = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`).then(r => r.json());
 
-    if (!webhookInfo.ok) {
-      await sendMessage(botToken, chatId, `❌ Failed to fetch webhook info:\n${webhookInfo.description}`);
-      return new Response("Failed to get webhook info");
-    }
+    // /getwebhookinfo (master only)
+if (isMaster && text === "/getwebhookinfo") {
+  const infoRes = await fetch(`https://api.telegram.org/bot${botToken}/getWebhookInfo`).then(r => r.json());
 
-    const info = webhookInfo.result;
-    const status = 
-      `<b>📬 Webhook Info:</b>\n` +
-      `• URL: <code>${info.url || "(none)"}</code>\n` +
-      `• Has Custom Certificate: <code>${info.has_custom_certificate}</code>\n` +
-      `• Pending Updates: <code>${info.pending_update_count}</code>\n` +
-      `• Last Error Time: <code>${info.last_error_date || "N/A"}</code>\n` +
-      `• Last Error Message: <code>${info.last_error_message || "N/A"}</code>`;
+  if (!infoRes.ok) {
+    await sendMessage(botToken, chatId, `❌ Failed to get webhook info:\n${infoRes.description}`);
+    return new Response("Failed to fetch webhook info");
+  }
 
-    await sendMessage(botToken, chatId, status, "HTML");
-    return new Response("Webhook info sent");
-  } else {
+  const info = infoRes.result;
+  const noError = !info.last_error_message && !info.last_error_date;
+
+  const msg =
+    `<b>🔗 Webhook Info</b>\n\n` +
+    `• URL: <code>${info.url || "None"}</code>\n` +
+    `• Has Custom Cert: <code>${info.has_custom_certificate}</code>\n` +
+    `• Pending Updates: <code>${info.pending_update_count}</code>\n` +
+    `• IP Address: <code>${info.ip_address || "N/A"}</code>\n` +
+    `• Max Connections: <code>${info.max_connections || "N/A"}</code>\n` +
+    `• Allowed Updates: <code>${(info.allowed_updates || []).join(", ") || "All"}</code>\n\n` +
+    (noError ? `✅ No error found` : `⚠️ Last Error:\n<code>${info.last_error_message || "Not found"}</code>\n⏱️ At: <code>${info.last_error_date ? new Date(info.last_error_date * 1000).toISOString() : "Not found"}</code>`);
+
+  await sendMessage(botToken, chatId, msg, "HTML");
+  return new Response("Webhook info shown");
+} else {
     await sendMessage(botToken, chatId, "❌ Invalid token. Please send a valid bot token or /cancel.");
     return new Response("Invalid token in getwebhook flow");
   }
