@@ -263,29 +263,32 @@ if (isMaster && newBotState.get(chatId)) {
   }
 }
 
-    // /mybots
-    if (isMaster && text === "/mybots") {
-      const allBots = await env.DEPLOYED_BOTS_KV.list();
-      const myBots = [];
+// /mybots
+if (isMaster && text === "/mybots") {
+  const allBots = await env.DEPLOYED_BOTS_KV.list();
+  const myBots = [];
 
-      for (const entry of allBots.keys) {
-        const val = await env.DEPLOYED_BOTS_KV.get(entry.name);
-        if (val === `creator:${chatId}`) {
-          const botInfo = await fetch(`https://api.telegram.org/bot${entry.name}/getMe`).then(r => r.json());
-          const username = botInfo.ok ? botInfo.result.username : null;
-          myBots.push(`• ${username ? `@${username}` : "(unknown username)"}\n<code>${entry.name}</code>`);
-        }
-      }
-
-      if (myBots.length === 0) {
-        await sendMessage(botToken, chatId, "🤖 You haven't deployed any bots yet.");
-      } else {
-        const msg = `<b>🤖 Your Bots:</b>\n\n` + myBots.join("\n\n");
-        await sendMessage(botToken, chatId, msg, "HTML");
-      }
-
-      return new Response("Mybots listed");
+  for (const entry of allBots.keys) {
+    const val = await env.DEPLOYED_BOTS_KV.get(entry.name);
+    if (val === `creator:${chatId}`) {
+      const botInfo = await fetch(`https://api.telegram.org/bot${entry.name}/getMe`).then(r => r.json());
+      const username = botInfo.ok ? botInfo.result.username : "(unknown)";
+      myBots.push({ token: entry.name, username });
     }
+  }
+
+  if (myBots.length === 0) {
+    await sendMessage(botToken, chatId, "🤖 You haven't created any bots yet.");
+  } else {
+    let msg = `<b>🤖 Your Bots:</b>\n\n`;
+    for (const bot of myBots) {
+      msg += `• @${bot.username}\n<code>${bot.token}</code>\n\n`;
+    }
+    await sendMessage(botToken, chatId, msg.trim(), "HTML");
+  }
+
+  return new Response("My bots listed");
+}
 
     // /start
     if (text === "/start") {
@@ -363,10 +366,6 @@ if (isMaster && getWebhookState.get(chatId)) {
 
     // Call Telegram getWebhookInfo
     const infoRes = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`).then(r => r.json());
-
-    // /getwebhookinfo (master only)
-if (isMaster && text === "/getwebhookinfo") {
-  const infoRes = await fetch(`https://api.telegram.org/bot${botToken}/getWebhookInfo`).then(r => r.json());
 
   if (!infoRes.ok) {
     await sendMessage(botToken, chatId, `❌ Failed to get webhook info:\n${infoRes.description}`);
