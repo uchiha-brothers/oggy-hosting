@@ -19,3 +19,6 @@ id = "773c7cb1420f4f50a72f472954587093"
 [[kv_namespaces]]
 binding = "STATS_KV"
 id = "38da19ee0fbf404e83910e498b437fe7"
+
+[vars]
+ADMIN_SECRET = "oggy"
