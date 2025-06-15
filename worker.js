@@ -354,13 +354,58 @@ if (callback) {
     await editMessage(botToken, chatId, msgId, helpMsg, "HTML", backKeyboard);
   }
 
-  else if (data === "stats") {
+  else if (callback?.data === "stats") {
+  const chatId = callback.message.chat.id;
+  const msgId = callback.message.message_id;
+
+  let statsMsg = "";
+  const backKeyboard = {
+    inline_keyboard: [[{ text: "⬅️ Back", callback_data: "start" }]],
+  };
+
+  if (isMaster) {
+    // Master bot global stats
     const listUsers = await env.USERS_KV.list();
-    const userKeys = listUsers.keys.filter(k => k.name.startsWith(`user-${botToken}-`));
-    const groupKeys = listUsers.keys.filter(k => k.name.startsWith(`chat-${botToken}-`));
-    const statsMsg = `<b>📊 Bot Stats</b>\n\n• Users: <code>${userKeys.length}</code>\n• Groups: <code>${groupKeys.length}</code>`;
-    await editMessage(botToken, chatId, msgId, statsMsg, "HTML", backKeyboard);
+    const listBots = await env.DEPLOYED_BOTS_KV.list();
+    const listDisabled = await env.DISABLED_BOTS_KV.list();
+
+    const userKeys = listUsers.keys.filter(k => k.name.startsWith(`user-${MASTER_BOT_TOKEN}-`));
+    const groupKeys = listUsers.keys.filter(k => k.name.startsWith(`chat-${MASTER_BOT_TOKEN}-`));
+
+    statsMsg =
+      `<b>📊 Global Stats:</b>\n` +
+      `• Total unique users: <code>${userKeys.length}</code>\n` +
+      `• Total unique groups: <code>${groupKeys.length}</code>\n` +
+      `• Total bots deployed: <code>${listBots.keys.length + listDisabled.keys.length}</code>\n` +
+      `• Active bots: <code>${listBots.keys.length}</code>\n` +
+      `• Disabled bots: <code>${listDisabled.keys.length}</code>`;
+  } else {
+    // Cloned bot-specific stats
+    const today = new Date().toISOString().split("T")[0];
+    const total = await env.STATS_KV.get(`stats:${botToken}:downloads:total`) || "0";
+    const todayCount = await env.STATS_KV.get(`stats:${botToken}:downloads:${today}`) || "0";
+
+    const listUsers = await env.USERS_KV.list({ prefix: `user-${botToken}-` });
+    const listGroups = await env.USERS_KV.list({ prefix: `chat-${botToken}-` });
+
+    const userCount = listUsers.keys.length;
+    const groupCount = listGroups.keys.length;
+
+    statsMsg =
+      `<b>📊 Bot Stats:</b>\n` +
+      `• Total Downloads: <code>${total}</code>\n` +
+      `• Downloads Today: <code>${todayCount}</code>\n` +
+      `• Unique Users: <code>${userCount}</code>\n` +
+      `• Unique Groups: <code>${groupCount}</code>`;
   }
+
+  await editMessage(botToken, chatId, msgId, statsMsg, "HTML", backKeyboard, {
+    disable_web_page_preview: true,
+  });
+
+  return new Response("Stats shown via callback");
+}
+
 
   else if (isMaster && callback?.data === "mybots") {
   const fromId = callback.from.id;
