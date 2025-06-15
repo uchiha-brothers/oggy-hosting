@@ -310,34 +310,29 @@ if (isMaster && text === "/mybots") {
 }
 
     if (text === "/start") {
+  coif (text === "/start") {
   const chatType = message.chat.type;
   const keyPrefix = chatType === "private" ? "user" : "chat";
   const key = `${keyPrefix}-${botToken}-${chatId}`;
   const already = await env.USERS_KV.get(key);
   if (!already) await env.USERS_KV.put(key, "1");
 
+  const isPrivate = chatType === "private";
   const startMsg = isMaster
     ? `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🤖 This bot manages other bots.\nUse <b>buttons below</b> to create or view your bots.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`
     : `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.`;
 
-  const inlineKeyboard = [
-    [
-      { text: "➕ New Bot", callback_data: "newbot" },
-      { text: "📋 My Bots", callback_data: "mybots" }
-    ],
-    [
-      { text: "📖 Help", callback_data: "help" }
+  const inlineKeyboard = {
+    inline_keyboard: [
+      [{ text: "➕ New Bot", callback_data: "stats" }],
+      [{ text: "🤖 My Bots", callback_data: "help" }],
+      [{ text: "📊 Stats", callback_data: "stats" }]
     ]
-  ];
+  };
 
-  await sendMessage(botToken, chatId, startMsg, "HTML", {
-    reply_markup: { inline_keyboard: inlineKeyboard }
-  });
-
+  await sendMessage(botToken, chatId, startMsg, "HTML", inlineKeyboard);
   return new Response("Start message sent");
 }
-
-
 
 const callback = update.callback_query;
 if (callback) {
@@ -559,22 +554,20 @@ async function sendPhoto(token, chatId, fileId, caption = "") {
   }).then(res => res.json());
 }
 
-async function sendMessage(botToken, chatId, text, parseMode = "HTML", replyMarkup = null) {
+async function sendMessage(token, chatId, text, parseMode = "Markdown", replyMarkup = undefined) {
   const payload = {
     chat_id: chatId,
     text,
     parse_mode: parseMode,
+    ...(replyMarkup && { reply_markup: replyMarkup })
   };
-  if (replyMarkup) {
-    payload.reply_markup = replyMarkup;
-  }
-
-  return await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+  return await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(payload)
   }).then(res => res.json());
 }
+
 
 async function sendVideo(botToken, chatId, videoUrl) {
   return await fetch(`https://api.telegram.org/bot${botToken}/sendVideo`, {
