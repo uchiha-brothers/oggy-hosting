@@ -14,9 +14,11 @@ export default {
     if (request.method !== "POST") return new Response("Only POST allowed");
 
     const update = await request.json();
-    const message = update.message || update.edited_message;
-    const text = message?.text || "";
+    const callback = update.callback_query;
+    const message = update.message || update.edited_message || callback?.message;
+    const text = message?.text || callback?.data || "";
     const chatId = message?.chat?.id;
+
 
     if (!chatId || !text) return new Response("No message");
 
@@ -304,8 +306,80 @@ if (isMaster && text === "/mybots") {
         : `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`;
 
       await sendMessage(botToken, chatId, startMsg, "HTML", {
-  disable_web_page_preview: true
+  disable_web_page_preview: true,
+  reply_markup: JSON.stringify({
+    inline_keyboard: isMaster
+      ? [
+          [
+            { text: "➕ Create New Bot", callback_data: "newbot" },
+            { text: "📊 Bot Stats", callback_data: "stats" }
+          ],
+          [
+            { text: "ℹ️ Help", callback_data: "help" }
+          ]
+        ]
+      : [
+          [
+            { text: "📥 Download Reel", callback_data: "reel_help" }
+          ],
+          [
+            { text: "ℹ️ Help", callback_data: "help" }
+          ]
+        ]
+  })
 });
+  // Handle inline button presses
+if (callback?.data === "help") {
+  await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      callback_query_id: callback.id
+    })
+  });
+
+  const helpText = isMaster
+        ? `❓ <b>How to use this bot:</b>\n\n• Send any <i>Instagram reel URL</i>\n• Or use <code>/reel &lt;url&gt;</code>\n• The bot will fetch and send you the video\n\n❓ <b>Master Bot Help:</b>\n\n• /newbot — Deploy new bot\n• /deletebot — Disable Bot Or Delete Bot\n• /stats — Global stats\n• /mybots — Your deployed bots\n\n🔧 For support or updates, visit <a href="https://t.me/oggy24help">@Oggy_Workshop</a>`
+        : `❓ <b>How to use this bot:</b>\n\n• Send any <i>Instagram reel URL</i>\n• Or use <code>/reel &lt;url&gt;</code>\n• The bot will fetch and send you the video\n\n🔧 For support or updates, visit <a href="https://t.me/oggy24help">@Oggy_Workshop</a>`;
+
+  await sendMessage(botToken, chatId, helpText, "HTML", {
+    reply_markup: JSON.stringify({
+      inline_keyboard: [
+        [{ text: "🔙 Back", callback_data: "start" }]
+      ]
+    })
+  });
+
+  return new Response("Help shown");
+}
+
+if (callback?.data === "start") {
+  const startMsg = isMaster
+    ? `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🤖 This bot manages other bots.\nUse /newbot to clone and deploy your own Telegram bot.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`
+    : `👋🏻 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`;
+
+  await sendMessage(botToken, chatId, startMsg, "HTML", {
+    disable_web_page_preview: true,
+    reply_markup: JSON.stringify({
+      inline_keyboard: isMaster
+        ? [
+            [
+              { text: "➕ Create New Bot", callback_data: "newbot" },
+              { text: "📊 Bot Stats", callback_data: "stats" }
+            ],
+            [
+              { text: "ℹ️ Help", callback_data: "help" }
+            ]
+          ]
+        : [
+            [{ text: "📥 Download Reel", callback_data: "reel" }]
+          ]
+    })
+  });
+
+  return new Response("Start shown via back");
+}
+    
   return new Response("Started");
 }
 
